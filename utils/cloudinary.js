@@ -8,14 +8,18 @@ cloudinary.v2.config({
 });
 
 const destroyFile = (PublicID) =>
-  cloudinary.v2.uploader.destroy(PublicID, (err, des) => des);
+  cloudinary.v2.uploader.destroy(PublicID, (err, des) => des).catch((error) => {
+    console.log(error);
+  });;
 
 const uploadFile = (file, folderName) =>
   cloudinary.v2.uploader.upload(file, {
     folder: `${process.env.CLOUDINARY_FOLDER}/${folderName}`,
     crop: 'fit',
     format: 'webp'
-  });
+  }).catch((error) => {
+    console.log(error);
+  });;
 module.exports = {
   uploadFile,
   destroyFile

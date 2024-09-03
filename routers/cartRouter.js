@@ -2,7 +2,6 @@ const express = require('express')
 const { updateCart, getCart, deleteItemFromCart, deleteAllItemsFromCart } = require('../controllers/cartController')
 const router = express.Router()
 const { authenticateUser, authorizePermissions } = require('../middlewares/authentication')
-const { singleFile } = require('../utils/multer')
 
 router.get('/',authenticateUser,authorizePermissions('user'), getCart)
 router.put('/', authenticateUser, authorizePermissions('user'), updateCart)

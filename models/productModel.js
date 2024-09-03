@@ -45,7 +45,8 @@ const ProductSchema = new mongoose.Schema({
     },
     category: {
         type: mongoose.Schema.ObjectId,
-        ref: 'Category'
+        ref: 'Category',
+        required: [true, 'A product must have a category']
     },
     seller: {
         type: mongoose.Schema.ObjectId,
@@ -86,7 +87,7 @@ const ProductSchema = new mongoose.Schema({
     ratingsAverage: {
         type: Number,
         default: 0,
-        min: [1, 'Rating must be above 1.0'],
+        min: [0, 'Rating must be above 0'],
         max: [5, 'Rating must be below 5.0'],
     },
     ratingsQuantity: {
@@ -96,9 +97,13 @@ const ProductSchema = new mongoose.Schema({
 })
 
 
+ProductSchema.index({ name: 'text', description :'text'})
 
-
-
+ProductSchema.post("save", () => {
+    if (this.quantity === 0) {
+        this.isOutOfStock = true;
+    }
+})
 
 
 

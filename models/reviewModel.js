@@ -12,8 +12,9 @@ const ReviewSchema = new mongoose.Schema({
     },
     rating: {
         type: Number,
-        min: 1,
-        max: 5
+        min: 0,
+        max: 5,
+        required: [true, 'Review rating cannot be empty!']
     },
     product: {
         type: mongoose.Types.ObjectId,
@@ -26,6 +27,12 @@ const ReviewSchema = new mongoose.Schema({
         required: [true, 'Review must belong to a user']
     }
 })
+
+
+ReviewSchema.index({ review: 'text' })
+
+
+
 ReviewSchema.methods.getRatingAvg = async (productId) => {
 
     const result = await this.aggregate([
@@ -37,7 +44,7 @@ ReviewSchema.methods.getRatingAvg = async (productId) => {
         {
             $group: {
                 _id: '$product',
-                ratingsQuantity: { $avg: '$rating' },
+                ratingsAverage: { $avg: '$rating' },
                 ratingsQuantity: { $sum: 1 }
             }
         }
@@ -55,6 +62,8 @@ ReviewSchema.methods.getRatingAvg = async (productId) => {
         })
     }
 }
+
+
 
 ReviewSchema.post('save', async () => {
     await getRatingAvg(this.product);

@@ -1,7 +1,8 @@
 const mongoose = require('mongoose')
 const bcrypt = require('bcryptjs')
 const validator = require('validator');
-
+const Cart = require('./cartModel')
+const Favourite = require('./favouriteModel')
 
 const UserSchema = new mongoose.Schema({
     firstname: {
@@ -59,37 +60,49 @@ const UserSchema = new mongoose.Schema({
         type: Boolean,
         default: false,
     },
-    cart: {
-        type: Array,
-        default: [],
+    balance: {
+        type: Number,
+        default: 0,
     },
-    shop: {
-        type: String,
-        default: "",
-    },
+    stripeAccountId:String,
+    cart: { type: mongoose.Schema.Types.ObjectId, ref: "Cart" },
+    // shop: {
+    //     type: String,
+    //     default: "",
+    // },
     address: {
         type: String,
     },
-    wishlist: [{ type: mongoose.Schema.Types.ObjectId, ref: "Product" }],
+    wishlist: { type: mongoose.Schema.Types.ObjectId, ref: "Favourite" },
     verificationToken: String,
     isVerified: {
         type: Boolean,
         default: false,
     },
     verified: Date,
-    verificationToken: {
-        type: String,
-    },
-   vericationTokenExpirationDate: {
-        type: Date,
-    },
-    discountCode: {
-        type: String
-    }
+   vericationTokenExpirationDate:Date,
+    discountCode: String
 
 })
 
+UserSchema.index({ firstname :'text',lastname:'text'})
+
 UserSchema.pre('save', async function () {
+        if (this.role === 'user') {        
+            const CartExist = await Cart.findOne({ user: this._id })   
+            console.log(CartExist, !CartExist)
+            if (!CartExist) {               
+                const cart = await Cart.create({ user: this._id })
+                this.cart = cart._id
+            }
+            const FavouriteExist = await Favourite.findOne({ user: this._id }) 
+            console.log(FavouriteExist, !FavouriteExist)
+            if (!FavouriteExist) {
+                const favourite = await Favourite.create({ user: this._id })
+                this.wishlist = favourite._id
+            }
+        }
+
     if (!this.isModified('password')) return;
 
     const salt = await bcrypt.genSalt(10)

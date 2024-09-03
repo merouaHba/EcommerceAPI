@@ -40,13 +40,13 @@ const sendEmail = async ({ to, subject, html }) => {
   const transporter = nodemailer.createTransport(nodemailerConfig);
 
   return transporter.sendMail({
-    from: '"maroua hba" <marouahba31@gmail.com>', // sender address
+    from: '"meroua hadj benaichouche" <meroua.hadjbenaichouche@gmail.com>', // sender address
     to,
     subject,
     html,
   },  (error, info) =>{
     if (error) {
-      console.log(error);
+      console.log("Email not sent");
     } else {
       console.log('Email sent: ' + info.response);
       // do something useful
