@@ -1,39 +1,52 @@
 var slugify = require('slugify')
 const Product = require('../models/productModel');
+const Category = require('../models/categoryModel');
+const User = require('../models/userModel');
 const { StatusCodes } = require('http-status-codes');
 
 
 const { uploadFile, destroyFile } = require('../utils/cloudinary')
 const CustomError = require('../errors');
-const { checkPermissions } = require('../utils');
+const { checkPermissions, apiFeatures } = require('../utils');
 const validateMongoDbId = require('../utils/validateMongodbId');
 
 
 const createProduct = async (req, res) => {
+    const { name, price, description, category } = req.body;
+    if (!name || !price || !description || !category) {
+        throw new CustomError.BadRequestError('please provide all required fields to create product');
+    }
+    // if (req.user.role === 'admin' && !req.body.seller) {
+    //     throw new CustomError.BadRequestError('please provide all required fields to create product');
+    // }
+    validateMongoDbId(category)
+
     const files = req.files;
     const slug = slugify(req.body.name)
+    const seller = req.user._id
+console.log('hi p')
     let mainImage = {
         public_id: '',
         url: '',
     }
     let images = []
     // console.log('file.fieldName')
-    if (files.length < 2) {
+    if (!files || files.length < 2) {
         throw new CustomError.BadRequestError('please upload images')
     }
     const fieldnames = []
     files.map(file => {
         fieldnames.push(file.fieldname)
     })
-console.log(fieldnames)
-console.log(!fieldnames.includes("mainImage"))
+    console.log(fieldnames)
+    console.log(!fieldnames.includes("mainImage"))
 
     if (!fieldnames.includes("mainImage")) {
         throw new CustomError.BadRequestError('please upload main image')
     }
 
 
- await Promise.all(   files.map(async (file) => {
+    await Promise.all(files.map(async (file) => {
 
         try {
             const result = await uploadFile(file.path, `products`);
@@ -56,50 +69,69 @@ console.log(!fieldnames.includes("mainImage"))
 
         } catch (err) {
             // 👇️ catch block ran:  An error occurred
-            throw new CustomError.BadRequestError(err._message)
+            throw new CustomError.BadRequestError("failled to upload images")
         }
 
 
     }))
 
-    const product = await Product.create({ ...req.body, slug,mainImage, images });
+    const product = await Product.create({ ...req.body, seller, slug, mainImage, images });
     // console.log(req.files)
     res.status(StatusCodes.CREATED).json({ product });
 
 };
 const getAllProducts = async (req, res) => {
-    const products = await Product.find({});
+    
+  
+    const result = await apiFeatures(req, Product);
+
+    res.status(StatusCodes.OK).json({ ...result });
+};
+const getSellerProducts = async (req, res) => {
+    const seller = req.user?.role === 'seller' ? req.user._id : req.params.id;
+    console.log('seller', seller)
+    const sellerExists = await User.findById(seller)
+    if (!sellerExists) {
+        throw new CustomError.BadRequestError('Seller doesn\'t exist')
+    }
+    const products = await Product.find({ seller });
 
     res.status(StatusCodes.OK).json({ products, count: products.length });
 };
 const getSingleProduct = async (req, res) => {
-    const { id: slug } = req.params;
-
-    const product = await Product.findOne({ slug: slug });
+    const { id } = req.params;
+validateMongoDbId(id)
+    const product = await Product.findById(id);
 
     if (!product) {
-        throw new CustomError.NotFoundError(`No product found with id : ${slug}`);
+        throw new CustomError.NotFoundError(`No product found with id : ${id}`);
     }
 
     res.status(StatusCodes.OK).json({ product });
 };
 const updateProduct = async (req, res) => {
     const { id: productId } = req.params;
+    const { name } = req.body;
 
-
-    const { idSeller } = req.body;
-    checkPermissions(id, idSeller, 'seller')
-
-
+    if (name) {
+        const slug = slugify(name)
+        req.body.slug = slug;
+    }
     validateMongoDbId(productId)
+
+    const productExists = await Product.findById(productId);
+
+    if (!productExists) {
+        throw new CustomError.NotFoundError(`No product with id : ${productId}`);
+    }
+    const idSeller = req.user._id;
+
+    checkPermissions(productExists.seller, idSeller, 'seller')
+
     const product = await Product.findOneAndUpdate({ _id: productId }, req.body, {
         new: true,
         runValidators: true,
     });
-
-    if (!product) {
-        throw new CustomError.NotFoundError(`No product with id : ${productId}`);
-    }
 
     res.status(StatusCodes.OK).json({ msg: "Success! product updated", product });
 };
@@ -107,10 +139,16 @@ const deleteProduct = async (req, res) => {
     const { id: productId } = req.params;
 
 
-    const { idSeller } = req.body;
-    checkPermissions(id, idSeller, 'seller')
-
     validateMongoDbId(productId)
+
+    const productExists = await Product.findById(productId);
+
+    if (!productExists) {
+        throw new CustomError.NotFoundError(`No product with id : ${productId}`);
+    }
+    const idSeller = req.user._id;
+
+    checkPermissions(productExists.seller, idSeller, 'seller')
     const product = await Product.findOneAndDelete({ _id: productId });
 
     if (!product) {
@@ -125,23 +163,29 @@ const deleteProduct = async (req, res) => {
     res.status(StatusCodes.OK).json({ msg: 'Success! Product removed.' });
 };
 const updateProductMainImage = async (req, res) => {
-    const { id } = req.params;
+    const { id: productId } = req.params;
 
-    const { idSeller } = req.body;
-    checkPermissions(id, idSeller, 'seller')
+    validateMongoDbId(productId)
 
-    validateMongoDbId(id)
-    const product = await Product.findOne({ _id: id });
+    const productExists = await Product.findById(productId);
+
+    if (!productExists) {
+        throw new CustomError.NotFoundError(`No product with id : ${productId}`);
+    }
+    const idSeller = req.user._id;
+
+    checkPermissions(productExists.seller, idSeller, 'seller')
+    const product = await Product.findOne({ _id: productId });
     console.log(!req.file)
     if (!req.file) {
         throw new CustomError.NotFoundError("No file found, please upload file")
     }
     const result = await uploadFile(req.file.path, `products`);
+    await destroyFile(product.mainImage.public_id)
 
     if (product.mainImage.url) {
         await destroyFile(product.mainImage.url)
     }
-    console.log("top")
     product.mainImage = {
         public_id: result.public_id,
         url: result.secure_url
@@ -151,49 +195,77 @@ const updateProductMainImage = async (req, res) => {
     res.status(StatusCodes.OK).json({ msg: "Main image updated" })
 };
 const updateProductImages = async (req, res) => {
-    const { id } = req.params;
+    const { id: productId } = req.params;
 
+    validateMongoDbId(productId)
 
-    const { idSeller } = req.body;
-    checkPermissions(id, idSeller, 'seller')
-    
-    validateMongoDbId(id)
-    const product = await Product.findOne({ _id: id });
-    console.log(!req.files)
-    if (req.files.length === 0) {
-        throw new CustomError.NotFoundError("No file found, please upload file")
+    const productExists = await Product.findById(productId);
+
+    if (!productExists) {
+        throw new CustomError.NotFoundError(`No product with id : ${productId}`);
     }
-    const files = req.files;
-    files.map(async (file) => {
-        const result = await uploadFile(file.path, `products/${id}`)
-        product.images = [];
-        product.images.push({
-            public_id: res.public_id,
-            url: res.secure_url
-        })
-    })
+    const idSeller = req.user._id;
 
-    if (product.images.length !== 0) {
-        product.images.map(async (image) => {
-            await destroyFile(image.url)
+    checkPermissions(productExists.seller, idSeller, 'seller')
 
-        })
+    const product = await Product.findOne({ _id: productId });
+
+    if (!req.files || req.files.length < 2) {
+        throw new CustomError.BadRequestError("No file found, please upload file")
     }
-    console.log("top")
+   
+    await Promise.all(product.images.map(async (image) => {
+
+        try {
+            await destroyFile(image.public_id)
 
 
+        } catch (err) {
+            // 👇️ catch block ran:  An error occurred
+            throw new CustomError.BadRequestError(err._message)
+        }
+
+
+    }))
+
+    let images = []
+
+    await Promise.all(req.files.map(async (file) => {
+
+        try {
+            const result = await uploadFile(file.path, `products`);
+
+            images.push({
+                public_id: result.public_id,
+                url: result.secure_url
+            })
+            console.log(images)
+
+
+        } catch (err) {
+            // 👇️ catch block ran:  An error occurred
+            throw new CustomError.BadRequestError(err._message)
+        }
+
+
+    }))
+
+
+    product.images = []
+    product.images = images
 
     product.save();
 
-    res.status(StatusCodes.OK).json({ msg: "images updated" })
+    res.status(StatusCodes.OK).json({ msg: "images updated" ,product})
 };
-const getTopSheapeastProducts = async(req, res) => {
+const getTopSheapeastProducts = async (req, res) => {
 
 }
 
 module.exports = {
     createProduct,
     getAllProducts,
+    getSellerProducts,
     getSingleProduct,
     updateProduct,
     deleteProduct,

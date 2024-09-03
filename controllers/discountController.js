@@ -4,14 +4,14 @@ const {
     checkPermissions
 } = require('../utils');
 
-const crypto = require('crypto');
+// const crypto = require('crypto');
 const coupongenerator = require('../utils/generateCoupon')
 const CustomError = require('../errors');
 
 const getAllDiscounts = async (req, res) => {
     const discounts = await Discount.find({});
     if (discounts.length === 0) {
-        throw new CustomError.NotFoundError('Discounts not found')
+        throw new CustomError.NotFoundError('No Discount found')
     }
     res.status(StatusCodes.OK).json({discounts})
 }

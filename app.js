@@ -6,8 +6,14 @@ const cookieParser = require('cookie-parser');
 const helmet = require('helmet');
 const cors = require('cors');
 const xss = require('xss-clean');
-const rateLimiter = require('express-rate-limit');
+const limiter = require('./middlewares/rateLimiter');
 const mongoSanitize = require('express-mongo-sanitize');
+
+// extra performance packages
+const compression = require('compression');
+
+// logger
+const { successHandle, errorHandle } = require('./middlewares/morgan');
 
 // Swagger
 const swaggerUI = require('swagger-ui-express');
@@ -17,9 +23,11 @@ const swaggerDocument = YAML.load('./swagger.yaml');
 const express = require('express')
 const app = express();
 
-// connect DB
-const connectDatabase = require('./db/connect');
-// const authenticateUser = require('./middlewares/authentication');
+// // Set trust proxy to true
+app.enable('trust proxy');
+// // Morgan logging Handler
+app.use(successHandle);
+app.use(errorHandle);
 
 // routers
 const authRouter = require('./routers/authRouter');
@@ -31,18 +39,65 @@ const favouriteRouter = require('./routers/favouriteRouter');
 const reviewRouter = require('./routers/reviewRouter');
 const discountRouter = require('./routers/discountRouter');
 const orderRouter = require('./routers/orderRouter');
+const paymentRouter = require('./routers/paymentRouter');
+const newsLettersubscriptionRouter = require('./routers/subscribeRouter');
 
 // error handler
 const notFoundMiddleware = require('./middlewares/not-found');
 const errorHandlerMiddleware = require('./middlewares/error-handler');
+const { webhook } = require('./controllers/paymentController');
 
 
-app.use(express.json());
+// Set Body parser, reading data from body into req.body
+app.use((req, res, next) => {
+    if (req.originalUrl === '/webhook') {
+        next(); // Do nothing with the body because I need it in a raw state.
+    } else {
+        express.json({ limit: '10mb' })(req, res, next);  // ONLY do express.json() if the received request is NOT a WebHook from Stripe.
+    }
+});
+app.use((req, res, next) => {
+
+    if (req.originalUrl === '/webhook') {
+        next(); // Do nothing with the body because I need it in a raw state.
+    } else {
+        express.urlencoded({ extended: true, limit: '10mb' })(req, res, next);  // ONLY do express.json() if the received request is NOT a WebHook from Stripe.
+    }
+
+});
+
+
+
+
+
+
+// Set security HTTP headers
 app.use(helmet());
+    
+// Implement CORS
 app.use(cors());
+app.options('*', cors());
+
+// Data sanitization against XSS
 app.use(xss());
-app.use(cookieParser(process.env.JWT_SECRET));
+
+// MongoDB data sanitization
 app.use(mongoSanitize())
+
+app.use(cookieParser(process.env.JWT_SECRET));
+
+
+// disable attackers to know the server stack (express - php ...ect)
+app.disable('x-powered-by');
+
+// response data compression
+app.use(compression())
+
+
+// Limit Repeated Failed Requests to Auth Endpoints
+if (process.env.NODE_ENV === 'production') {
+    app.use('/api/v1', limiter);
+}
 
 
 app.get('/', (req, res) => {
@@ -62,26 +117,18 @@ app.use('/api/v1/favourite',  favouriteRouter);
 app.use('/api/v1/reviews', reviewRouter);
 app.use('/api/v1/discounts', discountRouter);
 app.use('/api/v1/orders', orderRouter);
+app.use('/api/v1/payment', paymentRouter);
+app.use('/api/v1/news_letter', newsLettersubscriptionRouter);
+// listen to stripe events
+app.post('/webhook', express.raw({ type: "*/*" } ),webhook);
 
 
 app.use(notFoundMiddleware);
 app.use(errorHandlerMiddleware);
 
+// Scheduled transfer Amount to run every day at midnight
+require('./services/sheduledTransferAmount')
 
-const port = process.env.PORT || 3000;
 
-const start = async () => {
-    try {
-        await  connectDatabase(process.env.MONGODB_URI);
-        app.listen(port, () => {
-            console.log(`server is listening on port ${port} ...`);
-        })
 
- 
-
-    } catch (error) {
-        console.log(error)
-    }
-}
-start();
-
+module.exports = {app}

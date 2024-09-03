@@ -9,83 +9,87 @@ const CustomError = require('../errors');
 const validateMongoDbId = require('../utils/validateMongodbId');
 
 const getCart = async (req, res) => {
-    const { id, role } = req.body
+    const { _id: id, role } = req.user
     validateMongoDbId(id)
-    const cart = await Cart.findOne({ orderBy: id })
-    if (!cart) {
-        throw new CustomError.NotFoundError("No cart found")
-    }
-    checkPermissions(cart.orderBy,id,role)
-    res.status(StatusCodes.OK).json({ cart})
+    const cart = await Cart.findOne({ user: id })
+
+    res.status(StatusCodes.OK).json({ cart })
 }
+
+
 const updateCart = async (req, res) => {
-    const { userId,role } = req.body
+    const { _id, role } = req.user
     const { id, quantity } = req.body.product
-    validateMongoDbId(userId)
-    const cart = await Cart.findOne({ orderBy: userId }).populate("items.product")
-    if (!cart) {
-        throw new CustomError.NotFoundError("No cart found")
-    }
-    checkPermissions(cart.orderBy, userId, role)
+    validateMongoDbId(_id)
+    const cart = await Cart.findOne({ user: _id })
+    console.log(cart)
+
     validateMongoDbId(id)
     const product = await Product.findOne({ _id: id })
-    let isProductExists = false;
-    cart.items.map(item => {
-        if (item.product._id == id) {
-            isProductExists = true;
-        }
+    if (!product) {
+        throw new CustomError.NotFoundError('Product not found')
+    }
+
+    let isProductExists = cart.items.some(item => {
+        return item.product == id
     })
-    let item ={}
+
+    // check if product not out of stock
+
+    if (product.quantity = 0) {
+        throw new CustomError.BadRequestError('Product out of stock')
+    }
+ 
+    // check product quantity
+ 
+        if (product.quantity < quantity) {
+            throw new CustomError.BadRequestError('Not enough quantity')
+        }
+
+    
+    let item = {}
     if (isProductExists) {
 
-         item = {
-            product: id,
-            totalProductQuantity: quantity,
-            totalProductPrice: product.price * quantity,
-        }
+       
         cart.items = cart.items.map(cartItem => {
-            if (cartItem.product._id == id) {
-                cart.totalQuantity = parseInt(cart.totalQuantity) - parseInt(cartItem.totalProductQuantity)
-                cart.totalPrice = parseInt(cart.totalPrice) - parseInt(cartItem.totalProductPrice)
-                return item
+            if (cartItem.product == id) {
+                cart.totalQuantity = parseInt(cart.totalQuantity) - parseInt(cartItem.quantity) + parseInt(quantity)
+                cart.totalPrice = parseInt(cart.totalPrice) - (parseInt(cartItem.price) * parseInt(cartItem.quantity)) + (parseInt(cartItem.price)* parseInt(quantity))
+               
+                cartItem.quantity = quantity
             }
             return cartItem
         })
-        cart.totalQuantity = parseInt(cart.totalQuantity) + parseInt(item.totalProductQuantity)
-        cart.totalPrice = parseInt(cart.totalPrice) + parseInt(item.totalProductPrice)
-        cart.save()
-        res.status(StatusCodes.OK).json({ msg: "product quantity added succefully", cart })
+        // cart.totalQuantity = parseInt(cart.totalQuantity) + parseInt(item.quantity)
+        // cart.totalPrice = parseInt(cart.totalPrice) + (parseInt(item.price) * parseInt(quantity))
+        await cart.save()
+        res.status(StatusCodes.OK).json({ msg: "product quantity updated succefully", cart })
 
     } else {
-        
+
         item = {
             product: id,
-            totalProductQuantity: quantity,
-            totalProductPrice: product.price * quantity,
+            quantity: quantity,
+            price: product.price,
         }
         cart.items.push(item)
-        cart.totalQuantity = parseInt(cart.totalQuantity) + parseInt(item.totalProductQuantity)
-        cart.totalPrice = parseInt(cart.totalPrice) + parseInt(item.totalProductPrice)
-        cart.save()
+        cart.totalQuantity = parseInt(cart.totalQuantity) + parseInt(item.quantity)
+        cart.totalPrice = parseInt(cart.totalPrice) + (parseInt(item.price) * parseInt(item.quantity))
+        await cart.save()
         res.status(StatusCodes.OK).json({ msg: "product added succefully", cart })
     }
-  
-}
-const deleteItemFromCart = async (req, res) => {
-    const { userId,role } = req.body
-    const { id } = req.params
-    validateMongoDbId(userId)
-    const cart = await Cart.findOne({ orderBy: userId }).populate("items.product")
-    if (!cart) {
-        throw new CustomError.NotFoundError("No cart found")
-    }
-    checkPermissions(cart.orderBy, userId, role)
 
-    let isProductExists = false;
-    cart.items.map(item => {
-        if (item.product._id == id) {
-            isProductExists = true;
-        }
+}
+
+const deleteItemFromCart = async (req, res) => {
+    const { _id, role } = req.user
+    const { id } = req.params
+    validateMongoDbId(id)
+    const cart = await Cart.findOne({ user: _id })
+
+
+    let isProductExists = cart.items.some(item => {
+        return item.product == id
     })
 
     if (!isProductExists) {
@@ -93,30 +97,24 @@ const deleteItemFromCart = async (req, res) => {
     }
 
     cart.items = cart.items.filter(item => {
-        // console.log(item.product._id.toString() , id)
-        if (item.product._id.toString() === id) {
-            if (cart.totalQuantity > 0 ){
-                cart.totalQuantity = parseInt(cart.totalQuantity) - parseInt(item.totalProductQuantity)
+        if (item.product == id) {
+            if (cart.totalQuantity > 0 && (parseInt(cart.totalQuantity) - parseInt(item.quantity)) >= 0) {
+                cart.totalQuantity = parseInt(cart.totalQuantity) - parseInt(item.quantity)
             }
-            if (cart.totalPrice > 0 ){
-                cart.totalPrice = parseInt(cart.totalPrice) - parseInt(item.totalProductPrice)
+            if (cart.totalPrice > 0 && (parseInt(cart.totalPrice) - (parseInt(item.price) * parseInt(item.quantity)))>= 0) {
+                cart.totalPrice = parseInt(cart.totalPrice) - (parseInt(item.price) * parseInt(item.quantity))
             }
             return
         }
         return item
     })
-    // cart.items = cart.items.slice(0,0).push(...products)
     cart.save()
     res.status(StatusCodes.OK).json({ msg: "product deleted succefully", cart })
 }
 const deleteAllItemsFromCart = async (req, res) => {
-    const { userId, role } = req.body
-    validateMongoDbId(userId)
-    const cart = await Cart.findOne({ orderBy: userId }).populate("items.product")
-    if (!cart) {
-        throw new CustomError.NotFoundError("No cart found")
-    }
-    checkPermissions(cart.orderBy, userId, role)
+    const { _id, role } = req.user
+    validateMongoDbId(_id)
+    const cart = await Cart.findOne({ user: _id })
 
     if (cart.items.length === 0) {
         throw new CustomError.NotFoundError("No product found")
@@ -125,8 +123,8 @@ const deleteAllItemsFromCart = async (req, res) => {
     cart.items = []
     cart.totalPrice = 0
     cart.totalQuantity = 0
-    
-    cart.save()
+
+    await cart.save()
     res.status(StatusCodes.OK).json({ msg: "product deleted succefully", cart })
 }
 

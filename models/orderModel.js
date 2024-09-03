@@ -13,9 +13,14 @@ const OrderSchema = new mongoose.Schema({
         quantity: Number,
         price: Number,
     }],
+    subOrders: [{
+            type: mongoose.Schema.ObjectId,
+            ref: 'SubOrder'
+    }],
     user: {
         type: mongoose.Types.ObjectId,
-        ref: 'users'
+        ref: 'User',
+        required:true
     },
     totalPrice: {
         type: Number,
@@ -27,15 +32,15 @@ const OrderSchema = new mongoose.Schema({
         required: true,
         default: false
     },
-    paidAt: {
-        type: Date
-    },
-    isDelivered: {
+    isCanceled: {
         type: Boolean,
         required: true,
         default: false
     },
-    deliveredAt: {
+    paidAt: {
+        type: Date
+    },
+    canceledAt: {
         type: Date
     },
     shippingAddress: {
@@ -44,12 +49,9 @@ const OrderSchema = new mongoose.Schema({
         postalCode: { type: Number, required: true },
         country: { type: String, required: true }
     },
-    paymentMethod: {
-        type: String,
-        // required: true
-    },
-    paymentStripeId: {
-        type: String
+    transactionId: {
+        type: mongoose.Types.ObjectId,
+        ref: 'Transaction',
     },
     taxPrice: {
         type: Number,
@@ -64,20 +66,80 @@ const OrderSchema = new mongoose.Schema({
     phone: {
         type: String,
         required: [true, 'Phone Is Required']
+    }
+},
+{
+    timestamps: true,    
+})
+
+
+
+Order = mongoose.model('Order', OrderSchema)
+
+const SubOrderSchema = new mongoose.Schema({
+    user: {
+        type: mongoose.Types.ObjectId,
+        ref: 'User',
+        required: true
+    },
+    seller: {
+        type: mongoose.Types.ObjectId,
+        ref: 'User',
+        required: true
+    },
+    order: {
+        type: mongoose.Types.ObjectId,
+        ref: 'Order',
+        required: true
+    },
+    items: [{
+        product: {
+            type: mongoose.Schema.ObjectId,
+            ref: 'Product'
+        },
+        quantity: Number,
+        price: Number,
+    }],
+    isDelivered: {
+        type: Boolean,
+        required: true,
+        default: false
+    },
+    deliveredAt: {
+        type: Date
+    },
+    taxPrice: {
+        type: Number,
+        required: true,
+        default: 0.0
+    },
+    shippingPrice: {
+        type: Number,
+        required: true,
+        default: 0.0
+    },
+    totalAmount: {
+        type: Number,
+        required: true,
+        default: 0.0
+    },
+    isBalanceTransfered: {
+        type: Boolean,
+        required: true,
+        default: false
     },
     status: {
         type: String,
         default: 'Not Processed',
         enum: ['Not Processed', 'Processing', 'Shipped', 'Delivered', 'Cancelled']
     }
-},
-{
-        timestamps: true
-    
 })
 
-
-module.exports = mongoose.model('Order', OrderSchema)
+SubOrder = mongoose.model('SubOrder', SubOrderSchema)
+module.exports = {
+    SubOrder,
+    Order
+}
 
 
 

@@ -41,17 +41,22 @@ const createUser = async (req, res) => {
 
 const getAllUsers = async (req, res) => {
     console.log(req.user);
-    const users = await User.find({ $or:[{role: 'user'},{role:'seller'}] }).select('-password');
-    res.status(StatusCodes.OK).json({ users });
+    // const users = await User.find({ $or:[{role: 'user'},{role:'seller'}] }).select('-password');
+    // res.status(StatusCodes.OK).json({ users });
+    const result = await apiFeatures(req, User);
+
+    res.status(StatusCodes.OK).json({ ...result });
 };
 
 const getSingleUser = async (req, res) => {
-    validateMongoDbId(req.params.userId)
-    const user = await User.findOne({ _id: req.params.userId }).select('-password');
+    const { userId } = req.params;
+    const { _id, role } = req.user;
+    const id = role === "admin" ? userId : _id;
+    validateMongoDbId(id)
+    const user = await User.findOne({ _id: id }).select('-password');
     if (!user) {
-        throw new CustomError.NotFoundError(`No user with id : ${req.params.userId}`);
+        throw new CustomError.NotFoundError(`No user with id : ${id}`);
     }
-    checkPermissions(req.params.userId, user._d,user.role);
     res.status(StatusCodes.OK).json({ user });
 };
 
