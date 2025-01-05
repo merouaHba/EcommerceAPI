@@ -23,11 +23,25 @@ const swaggerDocument = YAML.load('./swagger.yaml');
 const express = require('express')
 const app = express();
 
-// // Set trust proxy to true
+
+// passport config
+const passport = require("passport");
+const session = require("express-session");
+require('./config/passport');
+// app.use(session({
+//     secret: process.env.SECRET_KEY,
+//     resave: false,
+//     saveUninitialized: false,
+   
+// }));
+// app.use(passport.session())
+
+// Set trust proxy to true
 app.enable('trust proxy');
 // // Morgan logging Handler
 app.use(successHandle);
 app.use(errorHandle);
+
 
 // routers
 const authRouter = require('./routers/authRouter');
@@ -75,7 +89,9 @@ app.use((req, res, next) => {
 app.use(helmet());
     
 // Implement CORS
-app.use(cors());
+app.use(cors({
+    credentials:true
+}));
 app.options('*', cors());
 
 // Data sanitization against XSS
@@ -84,7 +100,7 @@ app.use(xss());
 // MongoDB data sanitization
 app.use(mongoSanitize())
 
-app.use(cookieParser(process.env.JWT_SECRET));
+app.use(cookieParser(process.env.REFRESH_TOKEN_SECRET));
 
 
 // disable attackers to know the server stack (express - php ...ect)

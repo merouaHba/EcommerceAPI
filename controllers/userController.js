@@ -13,13 +13,12 @@ const validateMongoDbId = require('../utils/validateMongodbId');
 
 
 const createUser = async (req, res) => {
-    const {email, mobile} = req.body;
+    const {email} = req.body;
     
 
     const findUserByEmail = await User.findOne({ email: email });
-    const findUserByMobile = await User.findOne({ mobile: mobile });
 
-    console.log(!findUserByEmail && !findUserByMobile)
+    console.log(!findUserByEmail )
 
     if (!findUserByEmail && !findUserByMobile) {
 
@@ -27,7 +26,6 @@ const createUser = async (req, res) => {
         const verificationToken = "";
         console.log(req.body)
         const user = await User.create({ ...req.body, verificationToken, isVerified: true })
-        // send verification token back only while testing in postman!!!
         res.status(StatusCodes.CREATED).json({
             msg: 'Success! Account Created',
         });

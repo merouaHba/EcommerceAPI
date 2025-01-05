@@ -36,7 +36,7 @@ const updateCart = async (req, res) => {
 
     // check if product not out of stock
 
-    if (product.quantity = 0) {
+    if (parseInt(product.quantity, 10)=== 0) {
         throw new CustomError.BadRequestError('Product out of stock')
     }
  

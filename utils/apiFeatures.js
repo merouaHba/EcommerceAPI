@@ -155,7 +155,7 @@ console.log(req.query)
         success: true,
         count: results.length,
         total, //only for offset pagination
-        pages: !req.query.cursor ? (Math.ceil(total / limit) == 0 && results.length ? 1 : Math.ceil(total / limit)) : undefined, //only for offset pagination
+        pages: !req.query.cursor ? (Math.ceil(total / limit) === 0 && results.length ? 1 : Math.ceil(total / limit)) : undefined, //only for offset pagination
         currentPage: !req.query.cursor ? req.query.page * 1 || 1 : undefined, //only for offset pagination
         nextCursor, //only for for cursor-based pagination
         data: results

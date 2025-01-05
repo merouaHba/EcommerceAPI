@@ -3,6 +3,7 @@ const UnauthenticatedError = require('./unauthenticated')
 const NotFoundError = require('./not-found')
 const BadRequestError = require('./bad-request')
 const UnauthorizedError = require('./unauthorized');
+const ForbiddenError = require('./forbiden')
 const InternalServerError = require('./server-error')
 
 
@@ -11,6 +12,7 @@ module.exports = {
   UnauthenticatedError,
   NotFoundError,
   BadRequestError,
+  ForbiddenError,
   UnauthorizedError,
   InternalServerError,
 }

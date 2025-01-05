@@ -1,10 +1,7 @@
 const User = require('../models/userModel')
-const Cart = require('../models/cartModel');
-const Favourite = require('../models/favouriteModel');
 const { StatusCodes } = require('http-status-codes')
-const { BadRequestError, UnauthenticatedError, NotFoundError } = require('../errors')
-const { attachCookiesToResponse, createTokenUser, createJWT, sendVerificationEmail, sendResetPasswordEmail } = require('../utils');
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY)
+const { BadRequestError, UnauthenticatedError, NotFoundError, UnauthorizedError } = require('../errors')
+const { attachCookiesToResponse, createTokenUser, createJWT, sendVerificationEmail, sendResetPasswordEmail, isTokenValid } = require('../utils');
 
 
 
@@ -13,42 +10,29 @@ const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY)
 
 
 const register = async (req, res) => {
-    const { firstname, lastname, email, mobile, password } = req.body;
+    const { firstname, lastname, email, password } = req.body;
 
     const findUserByEmail = await User.findOne({ email: email });
-    const findUserByMobile = await User.findOne({ mobile: mobile });
-    // console.log(!findUserByEmail , !findUserByMobile)
 
-    if (!findUserByEmail && !findUserByMobile) {
+    if (!findUserByEmail ) {
         // first registered user is an admin
         const isFirstAccount = (await User.countDocuments({})) === 0;
         const role = isFirstAccount ? 'admin' : (req.body.role ? req.body.role : 'user');
 
         const tokenUser = createTokenUser({ ...req.body, role });
 
-        const verificationToken = createJWT({ payload: tokenUser });
-        const vericationTokenExpirationDate = Date.now() + 10 * 60 * 1000 // 10 min expiration
-        const user = await User.create({ firstname, lastname, email, mobile, password, role, verificationToken, vericationTokenExpirationDate })
-
-        
+        const verificationToken = createJWT({ payload: tokenUser, expireDate: '1d', jwtSecret: process.env.JWT_SECRET });
+        const vericationTokenExpirationDate = Date.now() + 24 * 60 * 60 * 1000 // 10 min expiration
+        const user = await User.create({ firstname, lastname, email, password, role, verificationToken, vericationTokenExpirationDate })
 
 
-
-        // console.log(user.verificationToken)
-
-        // origin domaine
-        const protocol = req.protocol;
-        const host = req.get('host');
-        const origin = `${protocol}://${host}`;
-        console.log(origin)
         await sendVerificationEmail({
             name: `${user.firstname} ${user.lastname}`,
             email: user.email,
             verificationToken: user.verificationToken,
-            origin,
+            origin: process.env.FRONTEND_URL,
         });
-        // console.log("yes")
-        // sendMail().then(res => console.log("Email sent...",res))
+   
 
         // send verification token back only while testing in postman!!!
         res.status(StatusCodes.CREATED).json({
@@ -63,7 +47,7 @@ const register = async (req, res) => {
 const resendVerificationEmail = async (req, res) => {
     const { email } = req.body;
 
-    const user = await User.findOne({email });
+    const user = await User.findOne({ email });
     if (!user) {
         throw new NotFoundError('user not found');
     }
@@ -71,11 +55,11 @@ const resendVerificationEmail = async (req, res) => {
         throw new BadRequestError('this account is already verified');
     }
 
-     
-        const tokenUser = createTokenUser({ email });
 
-        const verificationToken = createJWT({ payload: tokenUser });
-        const vericationTokenExpirationDate = Date.now() + 10 * 60 * 1000 // 10 expiration
+    const tokenUser = createTokenUser({ email });
+
+    const verificationToken = createJWT({ payload: tokenUser, expireDate: '1d', jwtSecret: process.env.JWT_SECRET });
+    const vericationTokenExpirationDate = Date.now() + 24 * 60 * 60 * 1000 // 10 expiration
 
     user.verificationToken = verificationToken;
     user.vericationTokenExpirationDate = vericationTokenExpirationDate;
@@ -83,47 +67,44 @@ const resendVerificationEmail = async (req, res) => {
     await user.save();
 
 
-        // console.log(user.verificationToken)
 
-        // origin domaine
-        const protocol = req.protocol;
-        const host = req.get('host');
-        const origin = `${protocol}://${host}`;
-        await sendVerificationEmail({
-            name: `${user.firstname} ${user.lastname}`,
-            email: user.email,
-            verificationToken: user.verificationToken,
-            origin,
-        });
-        // console.log("yes")
-        // sendMail().then(res => console.log("Email sent...",res))
+    await sendVerificationEmail({
+        name: `${user.firstname} ${user.lastname}`,
+        email: user.email,
+        verificationToken: user.verificationToken,
+        origin: process.env.FRONTEND_URL,
+    });
 
-        // send verification token back only while testing in postman!!!
-        res.status(StatusCodes.CREATED).json({
-            msg: 'Success! Please check your email to verify account',
-        });
+    res.status(StatusCodes.CREATED).json({
+        msg: 'Success! Please check your email to verify account',
+    });
 
-  
+
 
 }
 
 const verifyEmail = async (req, res) => {
     const { token } = req.params;
-
-    const user = isTokenValid({ token });
-    const userExists = User.findById(user.email)
+    let user;
+try{
+    user = isTokenValid({ token, jwtSecret: process.env.JWT_SECRET });
+} catch (err) {
+    throw new BadRequestError('Invalid token');
+}
+    const userExists = await User.findOne({email:user.email})
+    console.log(userExists, token)
     if (!userExists) {
         throw new BadRequestError('Invalid token');
     }
- 
+
     if (userExists.isVerified) {
         throw new BadRequestError('this account is already verified');
     }
 
-    if (userExists.vericationTokenExpirationDate < Date.now()) {
+    if (userExists.vericationTokenExpirationDate < new Date(Date.now())) {
         throw new BadRequestError('token expired');
     }
-    
+
     if (userExists.verificationToken !== token) {
         throw new BadRequestError('Verification Failed');
     }
@@ -154,9 +135,12 @@ const login = async (req, res) => {
     // compare password
 
     const isPasswordCorrect = user.email === email && user.comparePassword(password)
-    console.log(isPasswordCorrect)
     if (!isPasswordCorrect) {
         throw new UnauthenticatedError('Invalid Credentials')
+    }
+    if (user.isBlocked) {
+        throw new BadRequestError('Account is Blocked.')
+
     }
     if (!user.isVerified) {
         throw new BadRequestError('Account not verified. Please verify your account and try again.')
@@ -167,13 +151,53 @@ const login = async (req, res) => {
 
     // generate token
     const tokenUser = createTokenUser(user);
-    attachCookiesToResponse({ res, user: tokenUser });
+    const refreshToken = attachCookiesToResponse({ res, user: tokenUser });
+    user.refreshToken = refreshToken;
+    await user.save();
+    const accessToken = createJWT({ payload: tokenUser, expireDate: '15m', jwtSecret: process.env.ACCESS_TOKEN_SECRET })
 
-    res.status(StatusCodes.OK).json({ user: tokenUser, id: user._id });
+    res.status(StatusCodes.OK).json({ user: tokenUser, accessToken });
+}
+const refreshToken = async (req, res) => {
+    const refreshTokenFromCookie = req.signedCookies.token;
+
+    if (!refreshTokenFromCookie) {
+
+        throw new UnauthorizedError('Refresh token required')
+    }
+    let user;
+    try {
+         user = isTokenValid({ token:refreshTokenFromCookie, jwtSecret: process.env.REFRESH_TOKEN_SECRET });
+    } catch (error) {
+        throw new UnauthenticatedError('Invalid Refresh token');
+    }
+    const userExists = await User.findById(user._id)
+        if (!userExists || userExists.refreshToken !== refreshTokenFromCookie) {
+            throw new UnauthenticatedError('Invalid Refresh token');
+        }
+        // generate token
+        const tokenUser = createTokenUser(user);
+        const accessToken = createJWT({ payload: tokenUser, expireDate: '15m', jwtSecret: process.env.ACCESS_TOKEN_SECRET })
+
+        res.status(StatusCodes.OK).json({ user: tokenUser, accessToken });
+
+
+   
+
+
+
+
+
+
 }
 
 const logout = async (req, res) => {
-    res.clearCookie('token');
+    const user = await User.findByIdAndUpdate(req.user._id,{refreshToken:undefined});
+    res.clearCookie('token', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+    });
     res.status(StatusCodes.OK).json({ msg: 'user logged out!' });
 }
 
@@ -184,38 +208,33 @@ const forgotPassword = async (req, res) => {
     }
 
     const user = await User.findOne({ email });
-    // console.log(user)
 
     if (!user) {
         throw new UnauthenticatedError("Email Doesn't Exist");
 
     }
+    if (user.isBlocked) {
+        throw new BadRequestError('Account is Blocked.')
+
+    }
     const tokenUser = createTokenUser({ ...req.body });
 
-    const verificationToken = createJWT({ payload: tokenUser });
+    const verificationToken = createJWT({ payload: tokenUser, expireDate: '30m', jwtSecret: process.env.JWT_SECRET });
 
-    // origin domaine
-    const protocol = req.protocol;
-    const host = req.get('host');
-    const origin = `${protocol}://${host}`;
-    // send email
 
-    // console.log("yes")
-    // console.log(`${user.firstname} ${user.lastname}`)
+
+
 
     await sendResetPasswordEmail({
         name: `${user.firstname} ${user.lastname}`,
         email: user.email,
         token: verificationToken,
-        origin,
+        origin: process.env.FRONTEND_URL,
     });
 
-    const tenMinutes = 1000 * 60 * 10;
-    const vericationTokenExpirationDate = new Date(Date.now() + tenMinutes);
-    console.log("yes")
+    const vericationTokenExpirationDate = new Date(Date.now() + 1000 * 60 * 30);
     user.verificationToken = verificationToken;
     user.vericationTokenExpirationDate = vericationTokenExpirationDate;
-    console.log("yes")
     await user.save();
 
 
@@ -224,63 +243,62 @@ const forgotPassword = async (req, res) => {
         .json({ msg: 'Please check your email for reset password link' });
 };
 const resetPassword = async (req, res) => {
-    const { token, email, password, passwordConfirmation } = req.body;
-    if (!email) {
-        throw new BadRequestError('Please provide valid email');
-    }
-    if (!(password === passwordConfirmation)) {
+    const { token, password, confirmPassword } = req.body;
+    if (!(password === confirmPassword)) {
         throw new BadRequestError('confirm password');
     }
+    let user;
+    try {
+        user = isTokenValid({ token, jwtSecret: process.env.JWT_SECRET });
+    } catch (err) {
+        console.log(err)
+        throw new BadRequestError('Invalid token');
+    }
+    const userExists = await User.findOne({ email: user.email })
+   
 
-    const user = await User.findOne({ email });
+    console.log(userExists.vericationTokenExpirationDate < new Date(Date.now()))
+    console.log(userExists.vericationTokenExpirationDate, new Date(Date.now()))
+    if (!userExists) {
+        throw new NotFoundError('User not found');
+    }
 
-    if (!user) {
+    if (userExists.verificationToken !== token) {
         throw new UnauthenticatedError('Verification Failed');
     }
 
-    if (user.verificationToken !== token) {
-        throw new UnauthenticatedError('Verification Failed');
+    if (userExists.vericationTokenExpirationDate < new Date(Date.now())) {
+        throw new BadRequestError('token expired');
     }
-
-
-    const currentDate = new Date();
-    console.log(
-        user.vericationTokenExpirationDate > currentDate)
-    if (
-        !(user.vericationTokenExpirationDate > currentDate)
-    ) {
-        throw new BadRequestError('token Expired');
-    }
-    user.password = password;
-    user.verificationToken = null;
-    user.vericationTokenExpirationDate = null;
-    await user.save();
-    res.send('reset password');
+    userExists.password = password;
+    userExists.verificationToken = undefined;
+    userExists.vericationTokenExpirationDate = undefined;
+    await userExists.save();
+    res.status(StatusCodes.OK).json({ msg: 'Success! Password reset.' });
 
 };
 
 const changePassword = async (req, res) => {
-    const { email, currentPassword, password, passwordConfirmation } = req.body;
+    const {  currentPassword, password, confirmPassword } = req.body;
+    const { email } = req.user;
     if (!password || !currentPassword) {
-        throw new CustomError.BadRequestError('Please provide both values');
+        throw new BadRequestError('Please provide both values');
     }
-    if (!(password === passwordConfirmation)) {
+    if (!(password === confirmPassword)) {
         throw new BadRequestError('confirm password')
     }
     const user = await User.findOne({ email });
 
     // compare password
+    if (user.isBlocked) {
+        throw new BadRequestError('Account is Blocked.')
 
+    }
     const isPasswordCorrect = await user.comparePassword(currentPassword)
+    console.log(currentPassword, isPasswordCorrect)
     if (!isPasswordCorrect) {
         throw new UnauthenticatedError('Invalid Credentials')
     }
-
-    // const isPasswordChangeDelayed = await user.changePasswordAfter(user.updatedAt)
-
-    // if (isPasswordChangeDelayed) {
-    //     throw new BadRequestError("you are already changed password , you can't change password before 30 days")
-    // }
 
     user.password = password;
     await user.save();
@@ -293,6 +311,7 @@ const changePassword = async (req, res) => {
 module.exports = {
     register,
     login,
+    refreshToken,
     logout,
     verifyEmail,
     resendVerificationEmail,

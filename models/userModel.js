@@ -19,7 +19,9 @@ const UserSchema = new mongoose.Schema({
     },
     email: {
         type: String,
-        required: [true, 'Please provide an email'],
+        required: [function () {
+            return  !this.googleId && !this.facebookId && !this.appleId;
+        }, 'Please provide an email or mobile number'],
         unique: true,
         trim: true,
         lowercase: true,
@@ -30,7 +32,9 @@ const UserSchema = new mongoose.Schema({
     },
     mobile: {
         type: String,
-        required: [true, 'Please provide mobile number'],
+        // required: [function () {
+        //     return !this.email && !this.googleId && !this.facebookId && !this.appleId;
+        // }, 'Please provide an email or mobile number'],
         unique: true,
         validate: {
             validator: validator.isMobilePhone,
@@ -39,9 +43,11 @@ const UserSchema = new mongoose.Schema({
     },
     password: {
         type: String,
-        required: [true, 'Please provide a password'],
+        required: [function () {
+            return !this.googleId && !this.facebookId && !this.appleId;
+        }, 'Please provide a password'],
         trim: true,
-        minlength: 8,
+        minlength: [8, 'Password must be at least 8 characters long'],
     },
     profilePicture: { 
         public_id: {
@@ -66,26 +72,44 @@ const UserSchema = new mongoose.Schema({
     },
     stripeAccountId:String,
     cart: { type: mongoose.Schema.Types.ObjectId, ref: "Cart" },
-    // shop: {
-    //     type: String,
-    //     default: "",
-    // },
     address: {
         type: String,
     },
     wishlist: { type: mongoose.Schema.Types.ObjectId, ref: "Favourite" },
+    googleId: {
+        type: String,
+        unique: true,
+        sparse: true
+    },
+    facebookId: {
+        type: String,
+        unique: true,
+        sparse: true
+    },
+    appleId: {
+        type: String,
+        unique: true,
+        sparse: true
+    },
+    oauth: {
+        accessToken: String,
+        refreshToken: String,
+        tokenExpiry: Date
+    },
     verificationToken: String,
     isVerified: {
         type: Boolean,
         default: false,
     },
     verified: Date,
-   vericationTokenExpirationDate:Date,
+    vericationTokenExpirationDate: Date,
+    refreshToken: String,
     discountCode: String
 
-})
+}, { timestamps: true })
 
 UserSchema.index({ firstname :'text',lastname:'text'})
+UserSchema.index({ email :1,mobile:1})
 
 UserSchema.pre('save', async function () {
         if (this.role === 'user') {        
@@ -103,15 +127,23 @@ UserSchema.pre('save', async function () {
             }
         }
 
-    if (!this.isModified('password')) return;
-
-    const salt = await bcrypt.genSalt(10)
-    this.password = await bcrypt.hash(this.password, salt)
+    
+    if (this.password && this.isModified('password')) {
+        const salt = await bcrypt.genSalt(10)
+        this.password = await bcrypt.hash(this.password, salt)
+    }
 })
 
 
 UserSchema.methods.comparePassword = async function (canditatePassword) {
+    console.log(this)
+    console.log(this.password)
+    if (!this.password) {
+        console.log(!this.password)
+        return false
+    }
     const isMatch = await bcrypt.compare(canditatePassword, this.password)
+    
     return isMatch
 }
 

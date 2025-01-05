@@ -3,32 +3,36 @@ const { isTokenValid } = require('../utils');
 const User = require('../models/userModel')
 
 const authenticateUser = async (req, res, next) => {
-    let token;
+    let accessToken;
+    const refreshToken = req.signedCookies?.token
     // check header
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer')) {
-        token = authHeader.split(' ')[1];
-    }
-    // check cookies
-    else if (req.signedCookies.token) {
-    token = req.signedCookies.token;
-}
-    if (!token) {
-        throw new CustomError.UnauthenticatedError('Authentication Invalid');
+        accessToken = authHeader.split(' ')[1];
+
     }
 
+    if (!accessToken) {
+        throw new CustomError.UnauthenticatedError('Authentication Invalid');
+    }
+    let user;
     try {
-        const user = isTokenValid({ token });
+         user = isTokenValid({ token:accessToken, jwtSecret: process.env.ACCESS_TOKEN_SECRET });
         req.user = user
-        const userExists = User.findById(user._id)
-        if (!userExists) {
+    } catch (error) {
+        throw new CustomError.UnauthenticatedError('Token not valid or Session Expired. Please log in again!');
+    }
+        const userExists = await User.findById(user._id)
+
+    if (!userExists || !userExists.refreshToken  ) {
             throw new CustomError.UnauthenticatedError('Authentication Invalid');
+        }
+        if ( userExists.refreshToken !== refreshToken) {
+            throw new CustomError.UnauthenticatedError('Session Expired. Please log in again!');
         }
         // req.user = user
         next();
-    } catch (error) {
-        throw new CustomError.UnauthenticatedError('Authentication Invalid');
-    }
+    
 };
 
 const authorizePermissions = (...roles) => {
