@@ -66,6 +66,14 @@ const UserSchema = new mongoose.Schema({
         type: Boolean,
         default: false,
     },
+    storeName: {
+        type: String,
+        required: [function () {
+            return this.role === 'seller';
+        }, 'Please provide a storeName'],
+        maxlength: 80,
+        minlength: 3,
+    },
     balance: {
         type: Number,
         default: 0,
@@ -74,6 +82,13 @@ const UserSchema = new mongoose.Schema({
     cart: { type: mongoose.Schema.Types.ObjectId, ref: "Cart" },
     address: {
         type: String,
+    },
+    storeDetails: {
+        address: { type: String, required: true },
+        city: { type: String, required: true },
+        state: { type: String, required: true },
+        postalCode: { type: Number, required: true },
+        country: { type: String, required: true }
     },
     wishlist: { type: mongoose.Schema.Types.ObjectId, ref: "Favourite" },
     googleId: {

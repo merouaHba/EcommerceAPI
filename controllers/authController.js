@@ -1,6 +1,6 @@
 const User = require('../models/userModel')
 const { StatusCodes } = require('http-status-codes')
-const { BadRequestError, UnauthenticatedError, NotFoundError, UnauthorizedError } = require('../errors')
+const { BadRequestError, UnauthenticatedError, NotFoundError, UnauthorizedError, ForbiddenError } = require('../errors')
 const { attachCookiesToResponse, createTokenUser, createJWT, sendVerificationEmail, sendResetPasswordEmail, isTokenValid } = require('../utils');
 
 
@@ -11,19 +11,30 @@ const { attachCookiesToResponse, createTokenUser, createJWT, sendVerificationEma
 
 const register = async (req, res) => {
     const { firstname, lastname, email, password } = req.body;
-
+if(!firstname || !lastname || !email || !password) {  
+    throw new BadRequestError('Please provide all values')
+}
     const findUserByEmail = await User.findOne({ email: email });
 
     if (!findUserByEmail ) {
         // first registered user is an admin
         const isFirstAccount = (await User.countDocuments({})) === 0;
         const role = isFirstAccount ? 'admin' : (req.body.role ? req.body.role : 'user');
-
         const tokenUser = createTokenUser({ ...req.body, role });
-
+        
         const verificationToken = createJWT({ payload: tokenUser, expireDate: '1d', jwtSecret: process.env.JWT_SECRET });
         const vericationTokenExpirationDate = Date.now() + 24 * 60 * 60 * 1000 // 10 min expiration
-        const user = await User.create({ firstname, lastname, email, password, role, verificationToken, vericationTokenExpirationDate })
+        let user
+        if (req.body.role === 'seller') { 
+            const { mobile, storeDetails, storeName } = req.body;
+            if (!mobile || !storeDetails || !storeName) {
+                throw new BadRequestError('Please provide all values')
+            }
+            user = await User.create({ firstname, lastname, email, password, mobile, storeDetails, storeName, role, verificationToken, vericationTokenExpirationDate })
+        } else {
+            
+            user = await User.create({ firstname, lastname, email, password, role, verificationToken, vericationTokenExpirationDate })
+        }
 
 
         await sendVerificationEmail({
@@ -120,7 +131,7 @@ try{
 };
 
 const login = async (req, res) => {
-    const { email, password } = req.body
+    const { email, password,role} = req.body
     console.log(email, password)
     if (!email || !password) {
         throw new BadRequestError('Please provide userName and password')
@@ -137,6 +148,10 @@ const login = async (req, res) => {
     const isPasswordCorrect = user.email === email && user.comparePassword(password)
     if (!isPasswordCorrect) {
         throw new UnauthenticatedError('Invalid Credentials')
+    }
+    if (user.role === role ) {
+        throw new ForbiddenError(`This account is registred as a ${role}. Please Log in through the correct portal`)
+
     }
     if (user.isBlocked) {
         throw new BadRequestError('Account is Blocked.')
