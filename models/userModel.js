@@ -149,7 +149,7 @@ const UserSchema = new mongoose.Schema({
 }, { timestamps: true })
 
 UserSchema.index({ firstname :'text',lastname:'text'})
-UserSchema.index({ email: 1, mobile: 1 }, { unique: true, sparse: true }))
+UserSchema.index({ email: 1, mobile: 1 }, { unique: true, sparse: true })
 
 UserSchema.pre('save', async function () {
         if (this.role === 'user') {        
