@@ -157,7 +157,7 @@ const login = async (req, res) => {
 
     }
     if (!user.isVerified) {
-        throw new BadRequestError('Account not verified. Please verify your account and try again.')
+        throw new BadRequestError('Account not verified')
 
     }
 
