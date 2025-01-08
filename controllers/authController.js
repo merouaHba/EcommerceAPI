@@ -11,7 +11,7 @@ const { attachCookiesToResponse, createTokenUser, createJWT, sendVerificationEma
 
 const register = async (req, res) => {
     const { firstname, lastname, email, password } = req.body;
-if(!firstname || !lastname || !email || !password) {  
+if(!firstname || !lastname || !email || !password) { 
     throw new BadRequestError('Please provide all values')
 }
     const findUserByEmail = await User.findOne({ email: email });
@@ -132,7 +132,6 @@ try{
 
 const login = async (req, res) => {
     const { email, password,role} = req.body
-    console.log(email, password)
     if (!email || !password) {
         throw new BadRequestError('Please provide userName and password')
     }
@@ -149,8 +148,8 @@ const login = async (req, res) => {
     if (!isPasswordCorrect) {
         throw new UnauthenticatedError('Invalid Credentials')
     }
-    if (user.role === role ) {
-        throw new ForbiddenError(`This account is registred as a ${role}. Please Log in through the correct portal`)
+    if (user.role !== role ) {
+        throw new ForbiddenError(`This account is registred as a ${user.role}. Please Log in through the correct portal`)
 
     }
     if (user.isBlocked) {
