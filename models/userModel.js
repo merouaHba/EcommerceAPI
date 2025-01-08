@@ -32,9 +32,9 @@ const UserSchema = new mongoose.Schema({
     },
     mobile: {
         type: String,
-        // required: [function () {
-        //     return !this.email && !this.googleId && !this.facebookId && !this.appleId;
-        // }, 'Please provide an email or mobile number'],
+        required: [function () {
+            return this.role === 'seller'
+        }, 'Please provide an email or mobile number'],
         unique: true,
         validate: {
             validator: validator.isMobilePhone,
