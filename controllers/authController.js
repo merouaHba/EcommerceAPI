@@ -257,9 +257,9 @@ const forgotPassword = async (req, res) => {
         .json({ msg: 'Please check your email for reset password link' });
 };
 const resetPassword = async (req, res) => {
-    const { token, password, confirmPassword } = req.body;
-    if (!(password === confirmPassword)) {
-        throw new BadRequestError('confirm password');
+    const { token, password } = req.body;
+    if (!password) {
+        throw new BadRequestError('Please provide valid password');
     }
     let user;
     try {
@@ -269,20 +269,17 @@ const resetPassword = async (req, res) => {
         throw new BadRequestError('Invalid token');
     }
     const userExists = await User.findOne({ email: user.email })
-   
 
-    console.log(userExists.vericationTokenExpirationDate < new Date(Date.now()))
-    console.log(userExists.vericationTokenExpirationDate, new Date(Date.now()))
     if (!userExists) {
         throw new NotFoundError('User not found');
     }
 
     if (userExists.verificationToken !== token) {
-        throw new UnauthenticatedError('Verification Failed');
+        throw new UnauthenticatedError('Invalid token');
     }
 
     if (userExists.vericationTokenExpirationDate < new Date(Date.now())) {
-        throw new BadRequestError('token expired');
+        throw new BadRequestError('Invalid token');
     }
     userExists.password = password;
     userExists.verificationToken = undefined;
