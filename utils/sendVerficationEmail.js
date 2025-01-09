@@ -14,7 +14,7 @@ const sendVerificationEmail = async ({
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="x-apple-disable-message-reformatting">
-    <title>Reset Your Password</title>
+    <title>Verify Your  Account</title>
     <style>
         * {
             margin: 0;
@@ -76,7 +76,7 @@ const sendVerificationEmail = async ({
             margin: 30px 0;
         }
 
-        .reset-button {
+        .verify-button {
             display: inline-block;
             padding: 14px 32px;
             background-color: #4F46E5;
@@ -135,13 +135,13 @@ const sendVerificationEmail = async ({
         </div>
         
         <div class="content">
-            <h1>Reset Your Password</h1>
+            <h1>Verify Your  Account</h1>
             
             <p>Hello ${name},</p>
             
 
             <div class="button-container">
-                <a href="${verificationUrl}" class="reset-button">Reset Password</a>
+                <a href="${verificationUrl}" class="verify-button">Verify Account</a>
             </div>
 
                          <p>This verification link will expire in 24 hours. If you didn't create an account, please ignore this email.</p>
