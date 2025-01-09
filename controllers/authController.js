@@ -225,7 +225,7 @@ const forgotPassword = async (req, res) => {
     const user = await User.findOne({ email });
 
     if (!user) {
-        throw new UnauthenticatedError("Email Doesn't Exist");
+        throw new NotFoundError("Email Doesn't Exist");
 
     }
     if (!user.isVerified) {
