@@ -70,7 +70,7 @@ const resendVerificationEmail = async (req, res) => {
     const tokenUser = createTokenUser({ email });
 
     const verificationToken = createJWT({ payload: tokenUser, expireDate: '1d', jwtSecret: process.env.JWT_SECRET });
-    const vericationTokenExpirationDate = Date.now() + 24 * 60 * 60 * 1000 // 10 expiration
+    const vericationTokenExpirationDate = Date.now() + 24 * 60 * 60 * 1000 
 
     user.verificationToken = verificationToken;
     user.vericationTokenExpirationDate = vericationTokenExpirationDate;
@@ -88,6 +88,7 @@ const resendVerificationEmail = async (req, res) => {
 
     res.status(StatusCodes.CREATED).json({
         msg: 'Success! Please check your email to verify account',
+         expireDate: '24 hours'
     });
 
 
@@ -227,6 +228,10 @@ const forgotPassword = async (req, res) => {
         throw new UnauthenticatedError("Email Doesn't Exist");
 
     }
+    if (!user.isVerified) {
+        throw new BadRequestError('Account is Not Verified')
+
+    }
     if (user.isBlocked) {
         throw new BadRequestError('Account is Blocked.')
 
@@ -285,7 +290,7 @@ const resetPassword = async (req, res) => {
     userExists.verificationToken = undefined;
     userExists.vericationTokenExpirationDate = undefined;
     await userExists.save();
-    res.status(StatusCodes.OK).json({ msg: 'Success! Password reset.' });
+    res.status(StatusCodes.OK).json({ msg: 'Success! Password reset.', expireDate: '30 minutes' });
 
 };
 
