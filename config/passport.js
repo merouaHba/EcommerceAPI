@@ -1,6 +1,7 @@
 const passport = require('passport');
 const User = require('../models/userModel');
 const { ForbiddenError } = require('../errors');
+const { createTokenUser, attachCookiesToResponse } = require('../utils');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const AppleStrategy = require('passport-apple').Strategy;
 const FacebookStrategy = require('passport-facebook').Strategy;
@@ -30,9 +31,10 @@ passport.use(new GoogleStrategy({
         if (!user && userInfo.email) {
             user = await User.findOne({ email: userInfo.email });
         }
-
+      
 
         if (user) {
+           
             if (user.role !== role) {
                 throw new ForbiddenError(`This account is registred as a ${user.role}. Please Log in through the correct portal`)
 
@@ -52,6 +54,10 @@ passport.use(new GoogleStrategy({
             if (!user.googleId && profile.id ) {
                 user.googleId = profile.id;
             }
+            // generate token
+            const tokenUser = createTokenUser(user);
+            const refreshToken = attachCookiesToResponse({ res, user: tokenUser });
+            user.refreshToken = refreshToken;
             await user.save();
         } else {
             user = await User.create({
@@ -66,6 +72,11 @@ passport.use(new GoogleStrategy({
                 vericationTokenExpirationDate: undefined,
                 verified: Date.now()
             });
+            // generate token
+            const tokenUser = createTokenUser(user);
+            const refreshToken = attachCookiesToResponse({ res, user: tokenUser });
+            user.refreshToken = refreshToken;
+            await user.save();
         }
 
         return done(null, user);
@@ -123,6 +134,10 @@ passport.use(new FacebookStrategy({
             if (!user.facebookId && profile.id) {
                 user.facebookId = profile.id;
             }
+            // generate token
+            const tokenUser = createTokenUser(user);
+            const refreshToken = attachCookiesToResponse({ res, user: tokenUser });
+            user.refreshToken = refreshToken;
             await user.save();
         } else {
             user = await User.create({
@@ -137,6 +152,11 @@ passport.use(new FacebookStrategy({
                 vericationTokenExpirationDate : undefined,
                 verified : Date.now()
             });
+            // generate token
+            const tokenUser = createTokenUser(user);
+            const refreshToken = attachCookiesToResponse({ res, user: tokenUser });
+            user.refreshToken = refreshToken;
+            await user.save();
         }
 
         return done(null,user);

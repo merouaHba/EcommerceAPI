@@ -23,8 +23,8 @@ router.post('/resend-verification-email', resendVerificationEmail);
 router.post('/reset-password', resetPassword);
 router.post('/forgot-password', forgotPassword);
 router.put('/change-password',authenticateUser ,changePassword);
-router.get('/google',  (req, res) => {
-    const state = req.query.role ? Buffer.from(JSON.stringify({ role: req.query.role })).toString('base64') : undefined;
+router.post('/google',  (req, res) => {
+    const state = req.body.role ? Buffer.from(JSON.stringify({ role: req.body.role })).toString('base64') : undefined;
 
     passport.authenticate('google', {
         scope: [
@@ -42,9 +42,9 @@ router.get('/google',  (req, res) => {
 
 router.get('/google/callback',
     passport.authenticate('google', { failureRedirect: '/login', session: false }),
-   async function (req, res) {
-        // Successful authentication, redirect home.
-        const user = req.user
+    async function (req, res) {
+       
+try{        const user = req.user
 
         // generate token
         const tokenUser = createTokenUser(user);
@@ -52,11 +52,24 @@ router.get('/google/callback',
         user.refreshToken = refreshToken;
         await user.save();
         const accessToken = createJWT({ payload: tokenUser, expireDate: '15m', jwtSecret: process.env.ACCESS_TOKEN_SECRET })
+    // Encode user data to safely pass in URL
+    const encodedUserData = Buffer.from(
+        JSON.stringify(tokenUser)
+    ).toString('base64');
 
-        res.status(StatusCodes.OK).json({ user: tokenUser, accessToken });
+    // Build redirect URL with both token and user data
+    const frontendURL = new URL(process.env.FRONTEND_URL);
+    frontendURL.searchParams.append('token', accessToken);
+    frontendURL.searchParams.append('userData', encodedUserData);
+
+    res.redirect(frontendURL.toString());
+} catch (error) {
+    console.error('Authentication error:', error);
+    res.redirect(`${process.env.FRONTEND_URL}/login?error=authentication_failed`);
+}
     });
-router.get('/facebook', (req, res) => {
-    const state = req.query.role ? Buffer.from(JSON.stringify({ role: req.query.role })).toString('base64') : undefined;
+router.post('/facebook', (req, res) => {
+    const state = req.body.role ? Buffer.from(JSON.stringify({ role: req.body.role })).toString('base64') : undefined;
 
     passport.authenticate('facebook', {
         scope: [
@@ -71,7 +84,7 @@ router.get('/facebook', (req, res) => {
 router.get('/facebook/callback',
     passport.authenticate('facebook', { failureRedirect: '/login', session: false }),
    async function (req, res) {
-        // Successful authentication
+      try{
         const user = req.user
         // generate token
         const tokenUser = createTokenUser(user);
@@ -80,7 +93,21 @@ router.get('/facebook/callback',
         await user.save();
         const accessToken = createJWT({ payload: tokenUser, expireDate: '15m', jwtSecret: process.env.ACCESS_TOKEN_SECRET })
 
-        res.status(StatusCodes.OK).json({ user: tokenUser, accessToken });
+        // Encode user data to safely pass in URL
+        const encodedUserData = Buffer.from(
+            JSON.stringify(tokenUser)
+        ).toString('base64');
+
+        // Build redirect URL with both token and user data
+        const frontendURL = new URL(process.env.FRONTEND_URL);
+        frontendURL.searchParams.append('token', accessToken);
+        frontendURL.searchParams.append('userData', encodedUserData);
+
+        res.redirect(frontendURL.toString());
+    } catch (error) {
+        console.error('Authentication error:', error);
+        res.redirect(`${process.env.FRONTEND_URL}/login?error=authentication_failed`);
+    }
     });
 // router.get('/apple',
 //     passport.authenticate('apple', { scope: ['profile'] }));
