@@ -113,11 +113,11 @@ try{
     }
 
     if (userExists.vericationTokenExpirationDate < new Date(Date.now())) {
-        throw new BadRequestError('token expired');
+        throw new BadRequestError('Invalid token');
     }
 
     if (userExists.verificationToken !== token) {
-        throw new BadRequestError('Verification Failed');
+        throw new BadRequestError('Invalid token');
     }
 
     userExists.isVerified = true;
