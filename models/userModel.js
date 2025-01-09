@@ -176,14 +176,10 @@ UserSchema.pre('save', async function () {
 
 
 UserSchema.methods.comparePassword = async function (canditatePassword) {
-    console.log(this)
-    console.log(this.password)
     if (!this.password) {
-        console.log(!this.password)
         return false
     }
     const isMatch = await bcrypt.compare(canditatePassword, this.password)
-    
     return isMatch
 }
 

@@ -1,7 +1,6 @@
 const passport = require('passport');
 const User = require('../models/userModel');
 const { ForbiddenError } = require('../errors');
-const { createTokenUser, attachCookiesToResponse } = require('../utils');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const AppleStrategy = require('passport-apple').Strategy;
 const FacebookStrategy = require('passport-facebook').Strategy;
@@ -54,12 +53,11 @@ passport.use(new GoogleStrategy({
             if (!user.googleId && profile.id ) {
                 user.googleId = profile.id;
             }
-            // generate token
-            const tokenUser = createTokenUser(user);
-            const refreshToken = attachCookiesToResponse({ res, user: tokenUser });
-            user.refreshToken = refreshToken;
             await user.save();
         } else {
+            if (role === "seller") {
+                throw new BadRequestError("this role can't connect with this feature")
+            }
             user = await User.create({
                 firstname: userInfo.given_name || 'User',
                 lastname: userInfo.family_name || '',
@@ -72,11 +70,6 @@ passport.use(new GoogleStrategy({
                 vericationTokenExpirationDate: undefined,
                 verified: Date.now()
             });
-            // generate token
-            const tokenUser = createTokenUser(user);
-            const refreshToken = attachCookiesToResponse({ res, user: tokenUser });
-            user.refreshToken = refreshToken;
-            await user.save();
         }
 
         return done(null, user);
@@ -134,12 +127,11 @@ passport.use(new FacebookStrategy({
             if (!user.facebookId && profile.id) {
                 user.facebookId = profile.id;
             }
-            // generate token
-            const tokenUser = createTokenUser(user);
-            const refreshToken = attachCookiesToResponse({ res, user: tokenUser });
-            user.refreshToken = refreshToken;
             await user.save();
         } else {
+             if (role === "seller") {
+                throw new BadRequestError("this role can't connect with this feature")
+            }
             user = await User.create({
                 firstname: userInfo.first_name || 'User',
                 lastname: userInfo.last_name || "",
@@ -152,10 +144,6 @@ passport.use(new FacebookStrategy({
                 vericationTokenExpirationDate : undefined,
                 verified : Date.now()
             });
-            // generate token
-            const tokenUser = createTokenUser(user);
-            const refreshToken = attachCookiesToResponse({ res, user: tokenUser });
-            user.refreshToken = refreshToken;
             await user.save();
         }
 

@@ -145,9 +145,9 @@ const login = async (req, res) => {
 
     // compare password
 
-    const isPasswordCorrect = user.email === email && user.comparePassword(password)
+    const isPasswordCorrect = await user.comparePassword(password)
     if (!isPasswordCorrect) {
-        throw new UnauthenticatedError('Invalid Credentials')
+        throw new BadRequestError('Invalid Credentials')
     }
     if (user.role !== role ) {
         throw new ForbiddenError(`This account is registred as a ${user.role}. Please Log in through the correct portal`)

@@ -23,8 +23,8 @@ router.post('/resend-verification-email', resendVerificationEmail);
 router.post('/reset-password', resetPassword);
 router.post('/forgot-password', forgotPassword);
 router.put('/change-password',authenticateUser ,changePassword);
-router.post('/google',  (req, res) => {
-    const state = req.body.role ? Buffer.from(JSON.stringify({ role: req.body.role })).toString('base64') : undefined;
+router.get('/google',  (req, res) => {
+    const state = req.query.role ? Buffer.from(JSON.stringify({ role: req.query.role })).toString('base64') : undefined;
 
     passport.authenticate('google', {
         scope: [
@@ -41,7 +41,7 @@ router.post('/google',  (req, res) => {
 });
 
 router.get('/google/callback',
-    passport.authenticate('google', { failureRedirect: '/login', session: false }),
+    passport.authenticate('google', { failureRedirect: '/login?error=authentication%20failed', session: false }),
     async function (req, res) {
        
 try{        const user = req.user
@@ -65,11 +65,11 @@ try{        const user = req.user
     res.redirect(frontendURL.toString());
 } catch (error) {
     console.error('Authentication error:', error);
-    res.redirect(`${process.env.FRONTEND_URL}/login?error=authentication_failed`);
+    res.redirect(`${process.env.FRONTEND_URL}/login?error=authentication%20failed`);
 }
     });
-router.post('/facebook', (req, res) => {
-    const state = req.body.role ? Buffer.from(JSON.stringify({ role: req.body.role })).toString('base64') : undefined;
+router.get('/facebook', (req, res) => {
+    const state = req.query.role ? Buffer.from(JSON.stringify({ role: req.query.role })).toString('base64') : undefined;
 
     passport.authenticate('facebook', {
         scope: [
@@ -82,7 +82,7 @@ router.post('/facebook', (req, res) => {
 });
 
 router.get('/facebook/callback',
-    passport.authenticate('facebook', { failureRedirect: '/login', session: false }),
+    passport.authenticate('facebook', { failureRedirect: '/login?error=authentication%20failed', session: false }),
    async function (req, res) {
       try{
         const user = req.user
@@ -106,7 +106,7 @@ router.get('/facebook/callback',
         res.redirect(frontendURL.toString());
     } catch (error) {
         console.error('Authentication error:', error);
-        res.redirect(`${process.env.FRONTEND_URL}/login?error=authentication_failed`);
+          res.redirect(`${process.env.FRONTEND_URL}/login?error=authentication%20failed`);
     }
     });
 // router.get('/apple',
