@@ -1,5 +1,6 @@
 const passport = require('passport');
-const User = require('../models/userModel')
+const User = require('../models/userModel');
+const { ForbiddenError } = require('../errors');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const AppleStrategy = require('passport-apple').Strategy;
 const FacebookStrategy = require('passport-facebook').Strategy;
@@ -8,10 +9,6 @@ passport.use(new GoogleStrategy({
     clientID: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
     callbackURL: `${baseURL}/auth/google/callback`,
-    // scope: [
-    //     'profile',
-    //     'email'
-    // ],
     accessType: 'offline',
     prompt: 'consent',
     passReqToCallback: true
@@ -36,6 +33,19 @@ passport.use(new GoogleStrategy({
 
 
         if (user) {
+            if (user.role !== role) {
+                throw new ForbiddenError(`This account is registred as a ${user.role}. Please Log in through the correct portal`)
+
+            }
+            if (user.isBlocked) {
+                throw new BadRequestError('Account is Blocked.')
+            }
+            if (!user.isVerified) {
+                userExists.isVerified = true;
+                userExists.verified = Date.now();
+                userExists.verificationToken = undefined;
+                userExists.vericationTokenExpirationDate = undefined;
+            }
             if (!user.email && userInfo.email) {
                 user.email = userInfo.email;
             }
@@ -69,12 +79,6 @@ passport.use(new FacebookStrategy({
     clientSecret: process.env.FACEBOOK_APP_SECRET,
     callbackURL: `${baseURL}/auth/facebook/callback`,
     profileFields: ['id', 'email','displayName', 'name', 'picture'],
-    // scopes: [
-    //     'profile',
-    //     'email'
-    // ],
-    // accessType: 'offline',
-    // prompt: 'consent',
     enableProof: true,
     passReqToCallback: true
 }, async (req, accessToken, refreshToken, profile, done) => {
@@ -100,8 +104,18 @@ passport.use(new FacebookStrategy({
        
 
         if (user) {
+            if (user.role !== role) {
+                throw new ForbiddenError(`This account is registred as a ${user.role}. Please Log in through the correct portal`)
+
+            }
             if (user.isBlocked) {
                 throw new BadRequestError('Account is Blocked.')
+            }
+            if (!user.isVerified) {
+                userExists.isVerified = true;
+                userExists.verified = Date.now();
+                userExists.verificationToken = undefined;
+                userExists.vericationTokenExpirationDate = undefined;
             }
             if (!user.email && userInfo.email) {
                 user.email = userInfo.email;
@@ -117,7 +131,6 @@ passport.use(new FacebookStrategy({
                 email: userInfo.email,
                 profilePicture: { url: profile.photos[0].value || '' },
                 facebookId: profile.id,
-                // oauth: oauthData,
                 role,
                 isVerified: true,
                 verificationToken : undefined ,
