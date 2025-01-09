@@ -35,9 +35,11 @@ const UserSchema = new mongoose.Schema({
         required: [function () {
             return this.role === 'seller'
         }, 'Please provide an email or mobile number'],
-        unique: true,
         validate: {
-            validator: validator.isMobilePhone,
+            validator: function (v) {
+                if (this.role !== 'seller' && !v) return true;
+                return validator.isMobilePhone(v);
+            },
             message: 'Please provide valid mobile number',
         },
     },
@@ -149,7 +151,22 @@ const UserSchema = new mongoose.Schema({
 }, { timestamps: true })
 
 UserSchema.index({ firstname :'text',lastname:'text'})
-UserSchema.index({ email: 1, mobile: 1 }, { unique: true, sparse: true })
+UserSchema.index(
+    { email: 1 },
+    { unique: true, sparse: true }
+);
+
+UserSchema.index(
+    { mobile: 1 },
+    {
+        unique: true,
+        sparse: true,
+        partialFilterExpression: {
+            mobile: { $type: "string" },
+            role: "seller"  
+        }
+    }
+);
 
 UserSchema.pre('save', async function () {
         if (this.role === 'user') {        
