@@ -171,13 +171,11 @@ UserSchema.index(
 UserSchema.pre('save', async function () {
         if (this.role === 'user') {        
             const CartExist = await Cart.findOne({ user: this._id })   
-            console.log(CartExist, !CartExist)
             if (!CartExist) {               
                 const cart = await Cart.create({ user: this._id })
                 this.cart = cart._id
             }
             const FavouriteExist = await Favourite.findOne({ user: this._id }) 
-            console.log(FavouriteExist, !FavouriteExist)
             if (!FavouriteExist) {
                 const favourite = await Favourite.create({ user: this._id })
                 this.wishlist = favourite._id

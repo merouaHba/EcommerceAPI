@@ -104,7 +104,6 @@ try{
     throw new BadRequestError('Invalid token');
 }
     const userExists = await User.findOne({email:user.email})
-    console.log(userExists, token)
     if (!userExists) {
         throw new BadRequestError('Invalid token');
     }
@@ -170,7 +169,7 @@ const login = async (req, res) => {
     user.refreshToken = refreshToken;
     await user.save();
     const accessToken = createJWT({ payload: tokenUser, expireDate: '15m', jwtSecret: process.env.ACCESS_TOKEN_SECRET })
-
+    console.log('Cookie headers:', res.getHeaders());
     res.status(StatusCodes.OK).json({ user: tokenUser, accessToken });
 }
 const refreshToken = async (req, res) => {
@@ -311,7 +310,6 @@ const changePassword = async (req, res) => {
 
     }
     const isPasswordCorrect = await user.comparePassword(currentPassword)
-    console.log(currentPassword, isPasswordCorrect)
     if (!isPasswordCorrect) {
         throw new UnauthenticatedError('Invalid Credentials')
     }

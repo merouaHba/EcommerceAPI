@@ -90,10 +90,19 @@ app.use(helmet());
     
 // Implement CORS
 app.use(cors({
-    credentials:true
+    origin: process.env.FRONTEND_URL, 
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    credentials: true, // Allow cookies
+    allowedHeaders:  [
+        'Origin',
+        'X-Requested-With',
+        'Content-Type',
+        'Accept',
+        'Authorization',
+        'withcredentials'
+]
+    
 }));
-app.options('*', cors());
-
 // Data sanitization against XSS
 app.use(xss());
 

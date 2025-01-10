@@ -58,14 +58,14 @@ try{        const user = req.user
     ).toString('base64');
 
     // Build redirect URL with both token and user data
-    const frontendURL = new URL(`${process.env.FRONTEND_URL}${user.role === 'seller' ? 'seller/dashboard' : ''}`);
+    const frontendURL = new URL(`${process.env.FRONTEND_URL}${user.role === 'seller' ? '/seller/dashboard' : ''}`);
     frontendURL.searchParams.append('token', accessToken);
     frontendURL.searchParams.append('userData', encodedUserData);
 
     res.redirect(frontendURL.toString());
 } catch (error) {
     console.error('Authentication error:', error);
-    res.redirect(`${process.env.FRONTEND_URL}${user.role === 'seller' ? 'seller/' : ''}login?error=authentication%20failed`);
+    res.redirect(`${process.env.FRONTEND_URL}${user.role === 'seller' ? '/seller/' : '/'}login?error=authentication%20failed`);
 }
     });
 router.get('/facebook', (req, res) => {
@@ -99,14 +99,14 @@ router.get('/facebook/callback',
         ).toString('base64');
 
         // Build redirect URL with both token and user data
-          const frontendURL = new URL(`${process.env.FRONTEND_URL}${user.role === 'seller' ? 'seller/dashboard' : ''}`);
+          const frontendURL = new URL(`${process.env.FRONTEND_URL}${user.role === 'seller' ? '/seller/dashboard' : ''}`);
         frontendURL.searchParams.append('token', accessToken);
         frontendURL.searchParams.append('userData', encodedUserData);
 
         res.redirect(frontendURL.toString());
     } catch (error) {
         console.error('Authentication error:', error);
-          res.redirect(`${process.env.FRONTEND_URL}${user.role === 'seller' ? 'seller/' : ''}login?error=authentication%20failed`);
+          res.redirect(`${process.env.FRONTEND_URL}${user.role === 'seller' ? '/seller/' : '/'}login?error=authentication%20failed`);
     }
     });
 // router.get('/apple',

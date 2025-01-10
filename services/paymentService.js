@@ -18,8 +18,8 @@ const checkout = async (products, metadata) => {
     console.log(JSON.stringify(line_items))
     const session = await stripe.checkout.sessions.create({
         mode: 'payment',
-        success_url: `${process.env.FRONTEND_URL}success?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${process.env.FRONTEND_URL}cancel`,
+        success_url: `${process.env.FRONTEND_URL}/success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${process.env.FRONTEND_URL}/cancel`,
         line_items: line_items,
         payment_intent_data: {
             metadata,
