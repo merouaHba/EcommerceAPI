@@ -146,38 +146,45 @@ const deleteUser = async (req, res) => {
 }
 
 const uploadProfileImage = async (req, res) => {
-    const { userId: id } = req.params;
+    const { userId } = req.params;
+    const { _id, role } = req.user;
+    const id = role === "admin" ? userId : _id;
     validateMongoDbId(id)
     const user = await User.findOne({ _id: id });
-    console.log(!req.file)
     if (!req.file) {
         throw new CustomError.NotFoundError("No file found, please upload file")
     }
-    const result = await uploadFile(req.file.path, "users");
+    const result = await uploadFile(req.file.path, `users/${id}`);
 
     if (user.profilePicture.url) {
         await destroyFile(user.profilePicture.public_id)
     }
-    console.log("top")
+    if (!result.public_id && !result.secure_url) {
+        throw new CustomError.BadRequestError("Uploading image failed")
+    }
     user.profilePicture = {
         public_id: result.public_id,
         url: result.secure_url
     }
-    console.log(user)
     user.save();
-    console.log(user)
 
-    res.status(StatusCodes.OK).json({ msg: "image uploaded" })
+    res.status(StatusCodes.OK).json({ profilePicture: user.profilePicture.url })
 }
 const deleteProfileImage = async (req, res) => {
-    const { userId: id } = req.params;
+    const { userId } = req.params;
+    const { _id, role } = req.user;
+    const id = role === "admin" ? userId : _id;
     validateMongoDbId(id)
     const user = await User.findOne({ _id: id });
     if (!user) {
         throw new CustomError.NotFoundError(`No user with this id: ${id}`)
     }
     if (user.profilePicture.url) {
-        await destroyFile(user.profilePicture.public_id)
+        try {
+            await destroyFile(user.profilePicture.public_id)
+        } catch (err) {
+            throw new CustomError.BadRequestError("Deleting Image failed")
+        }
         user.profilePicture = {
             public_id: "",
             url: ""
@@ -185,10 +192,10 @@ const deleteProfileImage = async (req, res) => {
 
         user.save();
 
-        res.status(StatusCodes.OK).json({ msg: "image deleted" })
+        res.status(StatusCodes.OK).json({ profilePicture: user.profilePicture.url })
     } else {
 
-        throw new CustomError.NotFoundError(`Profile image not found`)
+        throw new CustomError.NotFoundError(`There is no profile image`)
 
     }
 }
