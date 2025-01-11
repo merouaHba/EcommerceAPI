@@ -25,16 +25,7 @@ const app = express();
 
 
 // passport config
-const passport = require("passport");
-const session = require("express-session");
 require('./config/passport');
-// app.use(session({
-//     secret: process.env.SECRET_KEY,
-//     resave: false,
-//     saveUninitialized: false,
-   
-// }));
-// app.use(passport.session())
 
 // Set trust proxy to true
 app.enable('trust proxy');
