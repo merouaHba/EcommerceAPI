@@ -3,6 +3,7 @@ const { StatusCodes } = require('http-status-codes');
 const {
     createTokenUser,
     attachCookiesToResponse,
+    createJWT,
     checkPermissions
 } = require('../utils');
 
@@ -68,14 +69,45 @@ const getSingleUser = async (req, res) => {
     res.status(StatusCodes.OK).json({ user: userObject });
 };
 
-// update user with user.save()
 const updateUser = async (req, res) => {
-    const id = req.params.userId;
-    if (Array.from(req.body).length === 0) {
+    const { userId } = req.params;
+    const { _id, role } = req.user;
+    const id = role === "admin" ? userId : _id;
+    validateMongoDbId(id)
+    const {firstname,lastname, mobile,address,storeName,storeDetails} = req.body;
+    if (!firstname || !lastname|| !mobile || !address || (role === "seller" &&(!storeName || !storeDetails))) {
         throw new CustomError.BadRequestError("no updated data")
     }
+    const updatedData = {};
+    if (mobile) {
+        const user = await User.findOne({ mobile: mobile });
+        if (user) {
+            throw new CustomError.BadRequestError("mobile number already exist")
+        }
+        updatedData.mobile = mobile
+    }
+    if (firstname) {
+        updatedData.firstname = firstname
+    }
+    if (lastname) {
+        updatedData.lastname = lastname
+    }
 
-    const user = await User.findOneAndUpdate({ _id: id }, req.body, {
+    if (address) {
+        updatedData.address = address
+        }
+
+    if (role === "seller") { 
+        if (storeName) {
+            updatedData.storeName = storeName
+        }
+        if (storeDetails) {
+            updatedData.storeDetails = storeDetails
+        }
+
+    }
+
+    const user = await User.findOneAndUpdate({ _id: id }, updatedData, {
         new: true,
         runValidators: true,
     })
@@ -86,8 +118,11 @@ const updateUser = async (req, res) => {
     }
 
     const tokenUser = createTokenUser(user);
-    attachCookiesToResponse({ res, user: tokenUser });
-    res.status(StatusCodes.OK).json({ user: tokenUser });
+    const refreshToken = attachCookiesToResponse({ res, user: tokenUser });
+    user.refreshToken = refreshToken;
+    await user.save();
+    const accessToken = createJWT({ payload: tokenUser, expireDate: '15m', jwtSecret: process.env.ACCESS_TOKEN_SECRET })
+    res.status(StatusCodes.OK).json({ user: tokenUser, accessToken });
 };
 
 const deleteUser = async (req, res) => {

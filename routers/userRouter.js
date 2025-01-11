@@ -9,7 +9,7 @@ router.post('/add', authenticateUser, authorizePermissions('admin'), createUser)
 router.post('/upload-profile-image/:userId?', authenticateUser, singleFile('image'),uploadProfileImage)
 router.delete('/delete-profile-image/:userId?', authenticateUser,deleteProfileImage)
 router.get('/user/:userId?', authenticateUser, getSingleUser)
-router.put('/update/:userId?', authenticateUser, updateUser)
-router.delete('/delete/:userId?', authenticateUser, deleteUser)
+router.put('/user/:userId?', authenticateUser, updateUser)
+router.delete('/user/:userId?', authenticateUser, deleteUser)
 
 module.exports = router
