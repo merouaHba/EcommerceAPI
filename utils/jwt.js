@@ -18,8 +18,7 @@ const attachCookiesToResponse = ({ res, user }) => {
     path:'/',
     secure: process.env.NODE_ENV === 'production',
     signed: true,
-    sameSite: process.env.NODE_ENV === 'production'?'None':"strict",
-    // domain: process.env.NODE_ENV === 'production'? process.env.DOMAIN:"localhost",
+    sameSite: process.env.NODE_ENV === 'production'?'lax':"strict",
     expires: new Date(Date.now() + month),
 
   });
