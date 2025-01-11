@@ -6,19 +6,19 @@ const {
     checkPermissions
 } = require('../utils');
 
-const {uploadFile,destroyFile} = require('../utils/cloudinary')
-const  CustomError = require('../errors');
+const { uploadFile, destroyFile } = require('../utils/cloudinary')
+const CustomError = require('../errors');
 const validateMongoDbId = require('../utils/validateMongodbId');
 
 
 
 const createUser = async (req, res) => {
-    const {email} = req.body;
-    
+    const { email } = req.body;
+
 
     const findUserByEmail = await User.findOne({ email: email });
 
-    console.log(!findUserByEmail )
+    console.log(!findUserByEmail)
 
     if (!findUserByEmail && !findUserByMobile) {
 
@@ -51,11 +51,21 @@ const getSingleUser = async (req, res) => {
     const { _id, role } = req.user;
     const id = role === "admin" ? userId : _id;
     validateMongoDbId(id)
-    const user = await User.findOne({ _id: id }).select('-password');
+    let user ;
+    if (role === "admin") {
+        user = await User.findOne({ _id: id }).select('-password');
+    } else if (role === "seller") {
+        user = await User.findOne({ _id: id }).select('firstname lastname profilePicture email mobile role address storeName storeDetails balance');
+    } else {
+        user = await User.findOne({ _id: id }).select('firstname lastname profilePicture email mobile role address');
+    }
     if (!user) {
         throw new CustomError.NotFoundError(`No user with id : ${id}`);
     }
-    res.status(StatusCodes.OK).json({ user });
+   const userObject = user.toObject()
+    userObject.name = `${user.firstname} ${user.lastname}`
+    userObject.profilePicture = user.profilePicture?.url
+    res.status(StatusCodes.OK).json({ user: userObject });
 };
 
 // update user with user.save()
@@ -64,7 +74,7 @@ const updateUser = async (req, res) => {
     if (Array.from(req.body).length === 0) {
         throw new CustomError.BadRequestError("no updated data")
     }
-    
+
     const user = await User.findOneAndUpdate({ _id: id }, req.body, {
         new: true,
         runValidators: true,
@@ -88,16 +98,16 @@ const deleteUser = async (req, res) => {
     if (!userFound) {
         throw new CustomError.NotFoundError(`No user with this id: ${id}`)
     }
-     
-    checkPermissions(id, userFound._id,userFound.role)
+
+    checkPermissions(id, userFound._id, userFound.role)
 
     const user = await User.findOneAndDelete({ _id: id })
     if (user.profilePicture.public_id) {
-        
+
         await destroyFile(user.profilePicture.public_id)
     }
-    await Cart.findOneAndDelete({orderBy:user._id})
-    res.status(200).json({ msg:"success! user deleted",user })
+    await Cart.findOneAndDelete({ orderBy: user._id })
+    res.status(200).json({ msg: "success! user deleted", user })
 }
 
 const uploadProfileImage = async (req, res) => {
@@ -111,7 +121,7 @@ const uploadProfileImage = async (req, res) => {
     const result = await uploadFile(req.file.path, "users");
 
     if (user.profilePicture.url) {
-      await  destroyFile(user.profilePicture.public_id)
+        await destroyFile(user.profilePicture.public_id)
     }
     console.log("top")
     user.profilePicture = {
@@ -122,7 +132,7 @@ const uploadProfileImage = async (req, res) => {
     user.save();
     console.log(user)
 
-    res.status(StatusCodes.OK).json({msg:"image uploaded"})
+    res.status(StatusCodes.OK).json({ msg: "image uploaded" })
 }
 const deleteProfileImage = async (req, res) => {
     const { userId: id } = req.params;
@@ -132,17 +142,17 @@ const deleteProfileImage = async (req, res) => {
         throw new CustomError.NotFoundError(`No user with this id: ${id}`)
     }
     if (user.profilePicture.url) {
-      await  destroyFile(user.profilePicture.public_id)
-      user.profilePicture = {
-          public_id: "",
-          url: ""
-      }
-  
-      user.save();
-  
-      res.status(StatusCodes.OK).json({msg:"image deleted"})
+        await destroyFile(user.profilePicture.public_id)
+        user.profilePicture = {
+            public_id: "",
+            url: ""
+        }
+
+        user.save();
+
+        res.status(StatusCodes.OK).json({ msg: "image deleted" })
     } else {
-        
+
         throw new CustomError.NotFoundError(`Profile image not found`)
 
     }
