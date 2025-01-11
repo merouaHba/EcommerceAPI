@@ -7,15 +7,11 @@ mailchimp.setConfig({
 });
 const listId = process.env.MAILCHIMP_LIST_ID;
 const addSubscriber = async (email) => {
-    try {
-        
+
         const response = await mailchimp.lists.addListMember(listId, {
             email_address: email,
             status: "subscribed",
         });
-    } catch (err) {
-        throw new InternalServerError('Failed to subscribe to the newsletter')
-    }
 
 }
 
