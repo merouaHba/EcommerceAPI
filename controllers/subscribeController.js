@@ -8,14 +8,14 @@ const subscribeToNewsLetter = async (req, res) => {
         throw new BadRequestError('Please Provide a valid email address')
     }
     try {
-        
+
         await addSubscriber(email)
         res.status(StatusCodes.CREATED).json({ message: 'Subscriber added successfully' })
     } catch (err) {
         if (err.response) {
             throw new BadRequestError(err.response?.body?.title)
         }
-        throw new BadRequestError("failed subscribe to newsletter")
+        throw new BadRequestError("Failed to subscribe. Please try again later.")
 
     }
         
