@@ -169,7 +169,6 @@ const login = async (req, res) => {
     user.refreshToken = refreshToken;
     await user.save();
     const accessToken = createJWT({ payload: tokenUser, expireDate: '15m', jwtSecret: process.env.ACCESS_TOKEN_SECRET })
-    console.log('Cookie headers:', res.getHeaders());
     res.status(StatusCodes.OK).json({ user: tokenUser, accessToken });
 }
 const refreshToken = async (req, res) => {
@@ -294,31 +293,34 @@ const resetPassword = async (req, res) => {
 };
 
 const changePassword = async (req, res) => {
-    const {  currentPassword, password, confirmPassword } = req.body;
+    const {  currentPassword, password } = req.body;
     const { email } = req.user;
     if (!password || !currentPassword) {
         throw new BadRequestError('Please provide both values');
     }
-    if (!(password === confirmPassword)) {
-        throw new BadRequestError('confirm password')
-    }
     const user = await User.findOne({ email });
 
-    // compare password
     if (user.isBlocked) {
         throw new BadRequestError('Account is Blocked.')
 
     }
+    if (!user.isVerified) {
+        throw new BadRequestError('Account is Not Verified.')
+
+    }
     const isPasswordCorrect = await user.comparePassword(currentPassword)
     if (!isPasswordCorrect) {
-        throw new UnauthenticatedError('Invalid Credentials')
+        throw new BadRequestError(' Password is incorrect')
     }
 
     user.password = password;
+    // generate token
+    const tokenUser = createTokenUser(user);
+    const refreshToken = attachCookiesToResponse({ res, user: tokenUser });
+    user.refreshToken = refreshToken;
     await user.save();
-    res.status(StatusCodes.OK).json({ msg: 'Success! Password Updated.' });
-
-
+    const accessToken = createJWT({ payload: tokenUser, expireDate: '15m', jwtSecret: process.env.ACCESS_TOKEN_SECRET })
+    res.status(StatusCodes.OK).json({ user: tokenUser, accessToken });
 
 }
 
