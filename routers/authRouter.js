@@ -42,9 +42,9 @@ router.get('/google',  (req, res) => {
 });
 
 router.get('/google/callback',
-    passport.authenticate('google', { failureRedirect: '/login', failWithError: true, session: false }),
     async function (req, res) {
-        const { err, user } = req
+        passport.authenticate('google',async (err,user)=> { 
+        // const { err, user } = req
         console.log(user)
         console.log(err)
         if (err) { 
@@ -88,6 +88,7 @@ try{
     });
     res.redirect(`${process.env.FRONTEND_URL}${user.role === 'seller' ? '/seller/' : '/'}login`);
 }
+        })
     });
 router.get('/facebook', (req, res) => {
     const state = req.query.role ? Buffer.from(JSON.stringify({ role: req.query.role })).toString('base64') : undefined;
