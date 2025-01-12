@@ -138,16 +138,16 @@ router.get('/google/callback', (req, res, next) => {
             res.cookie('accessToken', accessToken, cookieOptions);
 
             // Sanitize user data before setting in cookie
-            const sanitizedUser = {
-                _id: user._id,
-                role: user.role,
-                firstname: user.firstname,
-                lastname: user.lastname,
-                email: user.email,
-                profilePicture: user.profilePicture
-            };
-
-            res.cookie('user', JSON.stringify(sanitizedUser), cookieOptions);
+            // const sanitizedUser = {
+            //     _id: user._id,
+            //     role: user.role,
+            //     firstname: user.firstname,
+            //     lastname: user.lastname,
+            //     email: user.email,
+            //     profilePicture: user.profilePicture
+            // };
+            res.cookie('user', JSON.stringify(tokenUser), cookieOptions);
+            console.log(res.getHeaders())
 
             // Redirect to appropriate dashboard
             return res.redirect(`${process.env.FRONTEND_URL}${user.role === 'seller' ? '/seller/dashboard' : '/dashboard'}`);
@@ -156,6 +156,7 @@ router.get('/google/callback', (req, res, next) => {
             console.error('Auth completion error:', error);
 
             res.cookie('error', "Authentication process failed", cookieOptions);
+
             return res.redirect(`${process.env.FRONTEND_URL}${user?.role === 'seller' ? '/seller/' : '/'}login`);
         }
     })(req, res, next);
