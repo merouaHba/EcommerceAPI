@@ -54,7 +54,7 @@ router.get('/google',  (req, res) => {
 //                 path: '/',
 //                 secure: process.env.NODE_ENV === 'production',
 //                 signed: true,
-//                 sameSite: process.env.NODE_ENV === 'production' ? 'lax' : "strict",
+//                 sameSite: "none",
 //             });
 //             res.redirect(`${process.env.FRONTEND_URL}${user.role === 'seller' ? '/seller/' : '/'}login`);
 //         }
@@ -70,12 +70,12 @@ router.get('/google',  (req, res) => {
 //     res.cookie('accessToken', accessToken, {
 //         secure: process.env.NODE_ENV === 'production',
 //         signed: true,
-//         sameSite: process.env.NODE_ENV === 'production' ? 'lax' : "strict",
+//         sameSite: "none",
 //     });
 //     res.cookie('user', user, {
 //         secure: process.env.NODE_ENV === 'production',
 //         signed: true,
-//         sameSite: process.env.NODE_ENV === 'production' ? 'lax' : "strict",
+//         sameSite: "none",
 //     });
 
 
@@ -85,7 +85,7 @@ router.get('/google',  (req, res) => {
 //         path: '/',
 //         secure: process.env.NODE_ENV === 'production',
 //         signed: true,
-//         sameSite: process.env.NODE_ENV === 'production' ? 'lax' : "strict",
+//         sameSite: "none",
 //     });
 //     res.redirect(`${process.env.FRONTEND_URL}${user.role === 'seller' ? '/seller/' : '/'}login`);
 // }
@@ -98,7 +98,7 @@ router.get('/google/callback', (req, res, next) => {
             path: '/',
             secure: process.env.NODE_ENV === 'production',
             signed: true,
-            sameSite: process.env.NODE_ENV === 'production' ? 'lax' : "strict",
+            sameSite: "none",
         };
 
         // Handle authentication errors or failures
@@ -190,13 +190,13 @@ router.get('/facebook/callback',
               path: '/',
               secure: process.env.NODE_ENV === 'production',
               signed: true,
-              sameSite: process.env.NODE_ENV === 'production' ? 'lax' : "strict",
+              sameSite: "none",
           });
           res.cookie('user', user, {
               path: '/',
               secure: process.env.NODE_ENV === 'production',
               signed: true,
-              sameSite: process.env.NODE_ENV === 'production' ? 'lax' : "strict",
+              sameSite: "none",
           });
           console.log(res.getHeaders());
 
@@ -206,7 +206,7 @@ router.get('/facebook/callback',
               path: '/',
               secure: process.env.NODE_ENV === 'production',
               signed: true,
-              sameSite: process.env.NODE_ENV === 'production' ? 'lax' : "strict",
+              sameSite: "none",
           });
           res.redirect(`${process.env.FRONTEND_URL}${user.role === 'seller' ? '/seller/' : '/'}login`);
       
