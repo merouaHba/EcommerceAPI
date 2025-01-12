@@ -150,7 +150,7 @@ router.get('/google/callback', (req, res, next) => {
             console.log(res.getHeaders())
 
             // Redirect to appropriate dashboard
-            return res.redirect(`${process.env.FRONTEND_URL}${user.role === 'seller' ? '/seller/dashboard' : '/dashboard'}`);
+            return res.redirect(`${process.env.FRONTEND_URL}${user.role === 'seller' ? '/seller/dashboard' : '/'}`);
 
         } catch (error) {
             console.error('Auth completion error:', error);
