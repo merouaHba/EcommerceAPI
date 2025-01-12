@@ -42,7 +42,7 @@ router.get('/google',  (req, res) => {
 });
 
 router.get('/google/callback',
-    async function (req, res) {
+    async function (req, res,next) {
         passport.authenticate('google',async (err,user)=> { 
         // const { err, user } = req
         console.log(user)
