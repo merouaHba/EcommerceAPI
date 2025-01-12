@@ -13,6 +13,7 @@ const { register,
     resendVerificationEmail, } = require('../controllers/authController')
 const { authenticateUser } = require('../middlewares/authentication');
 const { StatusCodes } = require('http-status-codes');
+const { CustomAPIError } = require('../errors');
 
 router.post('/register', register)
 router.post('/login', login)
@@ -48,7 +49,7 @@ router.get('/google/callback',
         console.log(user)
         console.log(err)
         if (err) { 
-            res.cookie('error', err instanceof CustomError ? err.message :
+            res.cookie('error', err instanceof CustomAPIError ? err.message :
                  "authentication failed", {
                 path: '/',
                 secure: process.env.NODE_ENV === 'production',
