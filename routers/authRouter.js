@@ -44,8 +44,21 @@ router.get('/google',  (req, res) => {
 router.get('/google/callback',
     passport.authenticate('google', { failureRedirect: '/login', failWithError: true, session: false }),
     async function (req, res) {
+        const { err, user } = req
+        console.log(user)
+        console.log(err)
+        if (err) { 
+            res.cookie('error', err instanceof CustomError ? err.message :
+                 "authentication failed", {
+                path: '/',
+                secure: process.env.NODE_ENV === 'production',
+                signed: true,
+                sameSite: process.env.NODE_ENV === 'production' ? 'lax' : "strict",
+            });
+            res.redirect(`${process.env.FRONTEND_URL}${user.role === 'seller' ? '/seller/' : '/'}login`);
+        }
        
-try{        const user = req.user
+try{        
 
         // generate token
         const tokenUser = createTokenUser(user);

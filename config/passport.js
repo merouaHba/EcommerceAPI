@@ -14,6 +14,7 @@ passport.use(new GoogleStrategy({
     passReqToCallback: true
 }, async (req, accessToken, refreshToken, profile, done) => {
     try {
+        console.log(req.query)
         const isFirstAccount = (await User.countDocuments({})) === 0;
         let role = 'user';
 
@@ -33,10 +34,10 @@ passport.use(new GoogleStrategy({
         if (user) {
            
             if (user.role !== role) {
-                return done(null,false,new ForbiddenError(`This account is registred as a ${user.role}. Please Log in through the correct portal`))
+                return done(new ForbiddenError(`This account is registred as a ${user.role}. Please Log in through the correct portal`), null)
             }
             if (user.isBlocked) {
-                return done(null,false,new ForbiddenError(`This account is Blocked.`))
+                return  done(new ForbiddenError(`This account is Blocked.`), null)
             }
             if (!user.isVerified) {
                 userExists.isVerified = true;
@@ -53,7 +54,7 @@ passport.use(new GoogleStrategy({
             await user.save();
         } else {
             if (role === "seller") {
-                return  done(null,false,new BadRequestError("this role can't connect with this feature"))
+                return  done(new BadRequestError("this role can't connect with this feature"), null)
             }
             user = await User.create({
                 firstname: userInfo.given_name || 'User',
@@ -71,7 +72,7 @@ passport.use(new GoogleStrategy({
 
         return done(null, user);
     } catch (error) {
-        return done(null, false, new BadRequestError("Authentication failed"));
+        return done(new BadRequestError("Authentication failed"), null);
     }
 }));
 
@@ -104,7 +105,8 @@ passport.use(new FacebookStrategy({
 
         if (user) {
             if (user.role !== role) {
-                return done(null, false, new ForbiddenError(`This account is registred as a ${user.role}. Please Log in through the correct portal`))
+                return   done(new ForbiddenError(`This account is registred as a ${user.role}. Please Log in through the correct portal`)
+, null)
 
             }
             if (user.isBlocked) {
@@ -125,7 +127,7 @@ passport.use(new FacebookStrategy({
             await user.save();
         } else {
             if (role === "seller") {
-                return done(null, false, new BadRequestError("this role can't connect with this feature"))
+                return done(new BadRequestError("this role can't connect with this feature"), null)
             }
             user = await User.create({
                 firstname: userInfo.first_name || 'User',
@@ -144,7 +146,7 @@ passport.use(new FacebookStrategy({
 
         return done(null,user);
     } catch (error) {
-        return done(null, false, new BadRequestError("Authentication failed"));
+        return done(error, null);
     }
 }));
 
