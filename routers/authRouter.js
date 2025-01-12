@@ -54,7 +54,7 @@ router.get('/google',  (req, res) => {
 //                 path: '/',
 //                 secure: process.env.NODE_ENV === 'production',
 //                 signed: true,
-//                 sameSite: "none",
+//                 sameSite: "lax",
 //             });
 //             res.redirect(`${process.env.FRONTEND_URL}${user.role === 'seller' ? '/seller/' : '/'}login`);
 //         }
@@ -70,12 +70,12 @@ router.get('/google',  (req, res) => {
 //     res.cookie('accessToken', accessToken, {
 //         secure: process.env.NODE_ENV === 'production',
 //         signed: true,
-//         sameSite: "none",
+//         sameSite: "lax",
 //     });
 //     res.cookie('user', user, {
 //         secure: process.env.NODE_ENV === 'production',
 //         signed: true,
-//         sameSite: "none",
+//         sameSite: "lax",
 //     });
 
 
@@ -85,7 +85,7 @@ router.get('/google',  (req, res) => {
 //         path: '/',
 //         secure: process.env.NODE_ENV === 'production',
 //         signed: true,
-//         sameSite: "none",
+//         sameSite: "lax",
 //     });
 //     res.redirect(`${process.env.FRONTEND_URL}${user.role === 'seller' ? '/seller/' : '/'}login`);
 // }
@@ -98,7 +98,7 @@ router.get('/google/callback', (req, res, next) => {
             path: '/',
             secure: process.env.NODE_ENV === 'production',
             signed: true,
-            sameSite: "none",
+            sameSite: "lax",
         };
 
         // Handle authentication errors or failures
@@ -191,13 +191,13 @@ router.get('/facebook/callback',
               path: '/',
               secure: process.env.NODE_ENV === 'production',
               signed: true,
-              sameSite: "none",
+              sameSite: "lax",
           });
           res.cookie('user', user, {
               path: '/',
               secure: process.env.NODE_ENV === 'production',
               signed: true,
-              sameSite: "none",
+              sameSite: "lax",
           });
           console.log(res.getHeaders());
 
@@ -207,7 +207,7 @@ router.get('/facebook/callback',
               path: '/',
               secure: process.env.NODE_ENV === 'production',
               signed: true,
-              sameSite: "none",
+              sameSite: "lax",
           });
           res.redirect(`${process.env.FRONTEND_URL}${user.role === 'seller' ? '/seller/' : '/'}login`);
       
