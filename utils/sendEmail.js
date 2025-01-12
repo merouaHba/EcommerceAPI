@@ -1,20 +1,15 @@
 const nodemailer = require('nodemailer');
 const {google} = require('googleapis');
 
-// const nodemailerConfig = require('./nodemailerConfig');
 const sendEmail = async ({ to, subject, html }) => {
-  // console.log(google.auth)
   const OAuth2Client = new google.auth.OAuth2(
     process.env.EMAIL_CLIENT_ID,
     process.env.EMAIL_CLIENT_SECRET,
     process.env.EMAIL_CLIENT_REDIRECT_URI
   );
-// console.log("",OAuth2Client)
   OAuth2Client.setCredentials({ refresh_token: process.env.REFRESH_TOKEN });
   try {
-    // Generate the accessToken on the fly
     const accessToken = await OAuth2Client.getAccessToken();
-    // console.log(accessToken)
     const nodemailerConfig = {
       service: "gmail",
       host: "smtp.gmail.com",
@@ -35,7 +30,6 @@ const sendEmail = async ({ to, subject, html }) => {
   
 
 
-  // console.log(nodemailerConfig)
 
   const transporter = nodemailer.createTransport(nodemailerConfig);
 
@@ -49,7 +43,6 @@ const sendEmail = async ({ to, subject, html }) => {
       console.log("Email not sent");
     } else {
       console.log('Email sent: ' + info.response);
-      // do something useful
     }
   });
   } catch (err) {
