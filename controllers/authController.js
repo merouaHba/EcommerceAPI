@@ -10,12 +10,24 @@ const { attachCookiesToResponse, createTokenUser, createJWT, sendVerificationEma
 
 
 const register = async (req, res) => {
-    const { firstname, lastname, email, password } = req.body;
+    const { firstname, lastname, email, password, mobile, storeDetails, storeName, terms } = req.body;
+    if (!terms) {
+        throw new BadRequestError('You must accept terms and conditions to register')
+    }
 if(!firstname || !lastname || !email || !password) { 
     throw new BadRequestError('Please provide all values')
-}
-    const findUserByEmail = await User.findOne({ email: email });
+    }
+    
+    const findUserByEmail = await User.findOne({ email });
+    if (req.body.role === 'seller') {
 
+        const findUserByMobile = await User.findOne({ mobile });
+        if (findUserByMobile) {
+            {
+                throw new BadRequestError('User Already Exists')
+            }
+        }
+     }
     if (!findUserByEmail ) {
         // first registered user is an admin
         const isFirstAccount = (await User.countDocuments({})) === 0;
@@ -25,16 +37,17 @@ if(!firstname || !lastname || !email || !password) {
         const verificationToken = createJWT({ payload: tokenUser, expireDate: '1d', jwtSecret: process.env.JWT_SECRET });
         const vericationTokenExpirationDate = Date.now() + 24 * 60 * 60 * 1000 // 10 min expiration
         let user
-        if (req.body.role === 'seller') { 
-            const { mobile, storeDetails, storeName } = req.body;
-            if (!mobile || !storeDetails || !storeName) {
-                throw new BadRequestError('Please provide all values')
+
+            if (req.body.role === 'seller') {
+                if (!mobile || !storeDetails || !storeName) {
+                    throw new BadRequestError('Please provide all values')
+                }
+                user = await User.create({ firstname, lastname, email, password, mobile, storeDetails, storeName, role, verificationToken, vericationTokenExpirationDate,termsAccepted:terms,termsAcceptedAt:Date.now(),termsVersion:'1.0' })
+            } else {
+
+                user = await User.create({ firstname, lastname, email, password, role, verificationToken, vericationTokenExpirationDate, termsAccepted: terms, termsAcceptedAt: Date.now(), termsVersion: '1.0' })
             }
-            user = await User.create({ firstname, lastname, email, password, mobile, storeDetails, storeName, role, verificationToken, vericationTokenExpirationDate })
-        } else {
-            
-            user = await User.create({ firstname, lastname, email, password, role, verificationToken, vericationTokenExpirationDate })
-        }
+        
 
 
         await sendVerificationEmail({
@@ -131,7 +144,7 @@ try{
 };
 
 const login = async (req, res) => {
-    const { email, password,role} = req.body
+    const { email, password,role,rememberMe} = req.body
     if (!email || !password) {
         throw new BadRequestError('Please provide userName and password')
     }
@@ -165,8 +178,8 @@ const login = async (req, res) => {
 
     // generate token
     const tokenUser = createTokenUser(user);
-    const refreshToken = attachCookiesToResponse({ res, user: tokenUser });
-    user.refreshToken = refreshToken;
+    const refreshToken = attachCookiesToResponse({ res, rememberMe, user: tokenUser });
+    user.refreshToken.push(refreshToken);
     await user.save();
     const accessToken = createJWT({ payload: tokenUser, expireDate: '15m', jwtSecret: process.env.ACCESS_TOKEN_SECRET })
     res.status(StatusCodes.OK).json({ user: tokenUser, accessToken });
@@ -179,15 +192,23 @@ const refreshToken = async (req, res) => {
         throw new UnauthorizedError('Refresh token required')
     }
     let user;
+    const userExists = await User.findById(user._id)
+    if (!userExists || userExists.refreshToken.includes(refreshTokenFromCookie)) {
+        throw new UnauthenticatedError('Invalid Refresh token');
+    }
     try {
          user = isTokenValid({ token:refreshTokenFromCookie, jwtSecret: process.env.REFRESH_TOKEN_SECRET });
     } catch (error) {
+        userExists.refreshToken.filter((token)=>token!==refreshTokenFromCookie)
+        await userExists.save();
+        res.clearCookie('token', {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'strict',
+        });
         throw new UnauthenticatedError('Invalid Refresh token');
     }
-    const userExists = await User.findById(user._id)
-        if (!userExists || userExists.refreshToken !== refreshTokenFromCookie) {
-            throw new UnauthenticatedError('Invalid Refresh token');
-        }
+  
         // generate token
         const tokenUser = createTokenUser(user);
         const accessToken = createJWT({ payload: tokenUser, expireDate: '15m', jwtSecret: process.env.ACCESS_TOKEN_SECRET })
@@ -205,7 +226,12 @@ const refreshToken = async (req, res) => {
 }
 
 const logout = async (req, res) => {
-    const user = await User.findByIdAndUpdate(req.user._id,{refreshToken:undefined});
+    const refreshToken = req.signedCookies?.token
+
+   await User.findByIdAndUpdate(req.user._id, {
+        $pull: {
+            refreshToken
+    }});
     res.clearCookie('token', {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
@@ -316,8 +342,8 @@ const changePassword = async (req, res) => {
     user.password = password;
     // generate token
     const tokenUser = createTokenUser(user);
-    const refreshToken = attachCookiesToResponse({ res, user: tokenUser });
-    user.refreshToken = refreshToken;
+    const refreshToken = attachCookiesToResponse({ res,rememberMe:false, user: tokenUser });
+     user.refreshToken.push(refreshToken);
     await user.save();
     const accessToken = createJWT({ payload: tokenUser, expireDate: '15m', jwtSecret: process.env.ACCESS_TOKEN_SECRET })
     res.status(StatusCodes.OK).json({ user: tokenUser, accessToken });

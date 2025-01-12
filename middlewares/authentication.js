@@ -24,13 +24,10 @@ const authenticateUser = async (req, res, next) => {
     }
         const userExists = await User.findById(user._id)
 
-    if (!userExists || !userExists.refreshToken  ) {
-            throw new CustomError.UnauthenticatedError('Authentication Invalid');
+    if (!userExists || !userExists.refreshToken.includes(refreshToken)) { 
+            throw new CustomError.UnauthenticatedError('Authentication Invalid or Session Expired. Please log in again!');
         }
-        if ( userExists.refreshToken !== refreshToken) {
-            throw new CustomError.UnauthenticatedError('Session Expired. Please log in again!');
-        }
-        // req.user = user
+        
         next();
     
 };

@@ -38,9 +38,9 @@ const UserSchema = new mongoose.Schema({
         validate: {
             validator: function (v) {
                 if (this.role !== 'seller' && !v) return true;
-                return validator.isMobilePhone(v);
+                return validator.isMobilePhone(v, 'any');
             },
-            message: 'Please provide valid mobile number',
+            message: 'Please provide a valid mobile number',
         },
     },
     password: {
@@ -145,8 +145,22 @@ const UserSchema = new mongoose.Schema({
     },
     verified: Date,
     vericationTokenExpirationDate: Date,
-    refreshToken: String,
-    discountCode: String
+    refreshToken: {
+        type: [String],
+        default: [],
+    },
+    termsAccepted: {
+        type: Boolean,
+        default: false,
+        required: true
+    },
+    termsAcceptedAt: Date,
+    termsVersion: {
+        type: String,
+        required: true,
+        default: '1.0',
+    },
+    discountCode: String,
 
 }, { timestamps: true })
 

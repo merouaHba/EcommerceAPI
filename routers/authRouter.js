@@ -48,24 +48,33 @@ try{        const user = req.user
 
         // generate token
         const tokenUser = createTokenUser(user);
-        const refreshToken = attachCookiesToResponse({ res, user: tokenUser });
-        user.refreshToken = refreshToken;
+    const refreshToken = attachCookiesToResponse({ res, rememberMe: false, user: tokenUser });
+         user.refreshToken.push(refreshToken);
         await user.save();
         const accessToken = createJWT({ payload: tokenUser, expireDate: '15m', jwtSecret: process.env.ACCESS_TOKEN_SECRET })
-    // Encode user data to safely pass in URL
-    const encodedUserData = Buffer.from(
-        JSON.stringify(tokenUser)
-    ).toString('base64');
+    res.cookie('accessToken', accessToken, {
+        path: '/',
+        secure: process.env.NODE_ENV === 'production',
+        signed: true,
+        sameSite: process.env.NODE_ENV === 'production' ? 'lax' : "strict",
+    });
+    res.cookie('user', user, {
+        path: '/',
+        secure: process.env.NODE_ENV === 'production',
+        signed: true,
+        sameSite: process.env.NODE_ENV === 'production' ? 'lax' : "strict",
+    });
 
-    // Build redirect URL with both token and user data
-    const frontendURL = new URL(`${process.env.FRONTEND_URL}${user.role === 'seller' ? '/seller/dashboard' : ''}`);
-    frontendURL.searchParams.append('token', accessToken);
-    frontendURL.searchParams.append('userData', encodedUserData);
 
-    res.redirect(frontendURL.toString());
+    res.redirect(`${process.env.FRONTEND_URL}${user.role === 'seller' ? '/seller/dashboard' : ''}`);
 } catch (error) {
-    console.error('Authentication error:', error);
-    res.redirect(`${process.env.FRONTEND_URL}${user.role === 'seller' ? '/seller/' : '/'}login?error=authentication%20failed`);
+    res.cookie('error', "authentication failed", {
+        path: '/',
+        secure: process.env.NODE_ENV === 'production',
+        signed: true,
+        sameSite: process.env.NODE_ENV === 'production' ? 'lax' : "strict",
+    });
+    res.redirect(`${process.env.FRONTEND_URL}${user.role === 'seller' ? '/seller/' : '/'}login`);
 }
     });
 router.get('/facebook', (req, res) => {
@@ -88,26 +97,36 @@ router.get('/facebook/callback',
         const user = req.user
         // generate token
         const tokenUser = createTokenUser(user);
-        const refreshToken = attachCookiesToResponse({ res, user: tokenUser });
-        user.refreshToken = refreshToken;
+          const refreshToken = attachCookiesToResponse({ res, rememberMe: false, user: tokenUser });
+         user.refreshToken.push(refreshToken);
         await user.save();
         const accessToken = createJWT({ payload: tokenUser, expireDate: '15m', jwtSecret: process.env.ACCESS_TOKEN_SECRET })
 
-        // Encode user data to safely pass in URL
-        const encodedUserData = Buffer.from(
-            JSON.stringify(tokenUser)
-        ).toString('base64');
+          res.cookie('accessToken', accessToken, {
+              path: '/',
+              secure: process.env.NODE_ENV === 'production',
+              signed: true,
+              sameSite: process.env.NODE_ENV === 'production' ? 'lax' : "strict",
+          });
+          res.cookie('user', user, {
+              path: '/',
+              secure: process.env.NODE_ENV === 'production',
+              signed: true,
+              sameSite: process.env.NODE_ENV === 'production' ? 'lax' : "strict",
+          });
 
-        // Build redirect URL with both token and user data
-          const frontendURL = new URL(`${process.env.FRONTEND_URL}${user.role === 'seller' ? '/seller/dashboard' : ''}`);
-        frontendURL.searchParams.append('token', accessToken);
-        frontendURL.searchParams.append('userData', encodedUserData);
 
-        res.redirect(frontendURL.toString());
+          res.redirect(`${process.env.FRONTEND_URL}${user.role === 'seller' ? '/seller/dashboard' : ''}`);
     } catch (error) {
-        console.error('Authentication error:', error);
-          res.redirect(`${process.env.FRONTEND_URL}${user.role === 'seller' ? '/seller/' : '/'}login?error=authentication%20failed`);
-    }
+          res.cookie('error', "authentication failed", {
+              path: '/',
+              secure: process.env.NODE_ENV === 'production',
+              signed: true,
+              sameSite: process.env.NODE_ENV === 'production' ? 'lax' : "strict",
+          });
+          res.redirect(`${process.env.FRONTEND_URL}${user.role === 'seller' ? '/seller/' : '/'}login`);
+      
+      }
     });
 // router.get('/apple',
 //     passport.authenticate('apple', { scope: ['profile'] }));
