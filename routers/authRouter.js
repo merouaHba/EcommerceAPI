@@ -88,7 +88,7 @@ try{
     });
     res.redirect(`${process.env.FRONTEND_URL}${user.role === 'seller' ? '/seller/' : '/'}login`);
 }
-        })
+        })(req, res,next)
     });
 router.get('/facebook', (req, res) => {
     const state = req.query.role ? Buffer.from(JSON.stringify({ role: req.query.role })).toString('base64') : undefined;
