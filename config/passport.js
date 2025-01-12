@@ -14,7 +14,6 @@ passport.use(new GoogleStrategy({
     passReqToCallback: true
 }, async (req, accessToken, refreshToken, profile, done) => {
     try {
-        // Extract user info from profile
         const {
             email,
             given_name: firstname,
@@ -22,101 +21,72 @@ passport.use(new GoogleStrategy({
             picture: profilePicture
         } = profile._json;
 
-        // Determine user role
         let role = 'user';
         try {
             if (req.query.state) {
                 const stateData = JSON.parse(Buffer.from(req.query.state, 'base64').toString());
                 role = stateData.role;
             }
-
-            // Check if first account (make admin)
-            if (await User.countDocuments({}) === 0) {
-                role = 'admin';
-            }
         } catch (error) {
             console.error('Error parsing state:', error);
-            // Default to user role if state parsing fails
             role = 'user';
         }
+        
+                    if (await User.countDocuments({}) === 0) {
+                        role = 'admin';
+                    }
 
-        // Early check for seller role
-        if (role === "seller") {
-            return done(null, false, {
-                message: "Seller accounts cannot use Google authentication"
-            });
+
+        let user = await User.findOne({ googleId: profile.id });
+        if (!user && email) {
+            user = await User.findOne({ email: email });
         }
 
-        // Find existing user
-        let user = await User.findOne({
-            $or: [
-                { googleId: profile.id },
-                { email: email }
-            ]
-        });
-
         if (user) {
-            // Validate role
             if (user.role !== role) {
                 return done(null, false, {
-                    message: `This account is registered as ${user.role}. Please use the correct login portal.`
+                    message: `Authentification failed.`
                 });
             }
 
-            // Check if blocked
             if (user.isBlocked) {
                 return done(null, false, {
                     message: "This account has been blocked."
                 });
             }
 
-            // Update user information
-            try {
-                user = await User.findByIdAndUpdate(
-                    user._id,
-                    {
-                        $set: {
-                            isVerified: true,
-                            verified: Date.now(),
-                            verificationToken: undefined,
-                            verificationTokenExpirationDate: undefined,
-                            email: email || user.email,
-                            googleId: profile.id,
-                            lastLogin: Date.now()
-                        }
-                    },
-                    {
-                        new: true,
-                        runValidators: true
-                    }
-                );
+            if (!user.isVerified) {
+                userExists.isVerified = true;
+                userExists.verified = Date.now();
+                userExists.verificationToken = undefined;
+                userExists.vericationTokenExpirationDate = undefined;
+            }
+            if (!user.email && email) {
+                user.email = email;
+            }
+            if (!user.facebookId && profile.id) {
+                user.facebookId = profile.id;
+            }
+            await user.save();
+        } else {
 
-                if (!user) {
-                    throw new Error('User update failed');
-                }
-            } catch (updateError) {
-                console.error('Error updating user:', updateError);
+            if (role === "seller") {
                 return done(null, false, {
-                    message: "Failed to update user information"
+                    message: "Seller accounts cannot use Google authentication for registration"
                 });
             }
-        } else {
-            // Create new user
             try {
                 user = await User.create({
                     firstname: firstname || 'User',
                     lastname: lastname || '',
                     email,
                     profilePicture: {
-                        url: profilePicture || '',
-                        updatedAt: Date.now()
+                        url: profilePicture || ''
                     },
                     googleId: profile.id,
                     role,
                     isVerified: true,
                     verified: Date.now(),
-                    lastLogin: Date.now(),
-                    accountType: 'google'
                 });
             } catch (createError) {
                 console.error('Error creating user:', createError);
@@ -126,7 +96,6 @@ passport.use(new GoogleStrategy({
             }
         }
 
-        // Final validation check
         if (!user) {
             return done(null, false, {
                 message: "Failed to process user account"
@@ -151,69 +120,103 @@ passport.use(new FacebookStrategy({
     enableProof: true,
     passReqToCallback: true
 }, async (req, accessToken, refreshToken, profile, done) => {
+   
     try {
-        const isFirstAccount = (await User.countDocuments({})) === 0;
-        let role = 'user';
+        const {
+            email,
+            first_name: firstname,
+            last_name: lastname,
+        } = profile._json;
+        const profilePicture = profile.photos[0].value
 
-        if (req.query.state) {
-            const stateData = JSON.parse(Buffer.from(req.query.state, 'base64').toString());
-            role = stateData.role;
+        let role = 'user';
+        try {
+            if (req.query.state) {
+                const stateData = JSON.parse(Buffer.from(req.query.state, 'base64').toString());
+                role = stateData.role;
+            }
+        } catch (error) {
+            console.error('Error parsing state:', error);
+            role = 'user';
         }
-        if (isFirstAccount) role = 'admin';
-        const userInfo = profile._json;
+
+        if (await User.countDocuments({}) === 0) {
+            role = 'admin';
+        }
+
 
         let user = await User.findOne({ facebookId: profile.id });
-        if (!user && userInfo.email) {
-            user = await User.findOne({ email:userInfo.email });
+        if (!user && email) {
+            user = await User.findOne({ email: email });
         }
-       
-
-       
 
         if (user) {
             if (user.role !== role) {
-                return   done(new ForbiddenError(`This account is registred as a ${user.role}. Please Log in through the correct portal`)
-, null)
+                return done(null, false, {
+                    message: `Authentification failed.`
+                });
+            }
 
-            }
             if (user.isBlocked) {
-                return done(new ForbiddenError(`This account is Blocked.`), null)
+                return done(null, false, {
+                    message: "This account has been blocked."
+                });
             }
+
             if (!user.isVerified) {
                 userExists.isVerified = true;
                 userExists.verified = Date.now();
                 userExists.verificationToken = undefined;
                 userExists.vericationTokenExpirationDate = undefined;
             }
-            if (!user.email && userInfo.email) {
-                user.email = userInfo.email;
+            if (!user.email && email) {
+                user.email = email;
             }
             if (!user.facebookId && profile.id) {
                 user.facebookId = profile.id;
             }
             await user.save();
         } else {
+
             if (role === "seller") {
-                return done(new BadRequestError("this role can't connect with this feature"), null)
+                return done(null, false, {
+                    message: "Seller accounts cannot use Facebook authentication for registration"
+                });
             }
-            user = await User.create({
-                firstname: userInfo.first_name || 'User',
-                lastname: userInfo.last_name || "",
-                email: userInfo.email,
-                profilePicture: { url: profile.photos[0].value || '' },
-                facebookId: profile.id,
-                role,
-                isVerified: true,
-                verificationToken : undefined ,
-                vericationTokenExpirationDate : undefined,
-                verified : Date.now()
-            });
-            await user.save();
+            try {
+                user = await User.create({
+                    firstname: firstname || 'User',
+                    lastname: lastname || '',
+                    email,
+                    profilePicture: {
+                        url: profilePicture || ''
+                    },
+                    facebookId: profile.id,
+                    role,
+                    isVerified: true,
+                    verified: Date.now(),
+                });
+            } catch (createError) {
+                console.error('Error creating user:', createError);
+                return done(null, false, {
+                    message: "Failed to create new user account"
+                });
+            }
         }
 
-        return done(null,user);
+        if (!user) {
+            return done(null, false, {
+                message: "Failed to process user account"
+            });
+        }
+
+        return done(null, user);
+
     } catch (error) {
-        return done(error, null);
+        console.error('Authentication error:', error);
+        return done(null, false, {
+            message: error.message || "Authentication failed. Please try again."
+        });
     }
 }));
 

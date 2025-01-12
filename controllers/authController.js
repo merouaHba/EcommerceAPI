@@ -192,15 +192,21 @@ const refreshToken = async (req, res) => {
         throw new UnauthorizedError('Refresh token required')
     }
     let user;
-    const userExists = await User.findById(user._id)
-    if (!userExists || userExists.refreshToken.includes(refreshTokenFromCookie)) {
-        throw new UnauthenticatedError('Invalid Refresh token');
-    }
+   
     try {
-         user = isTokenValid({ token:refreshTokenFromCookie, jwtSecret: process.env.REFRESH_TOKEN_SECRET });
+        user = isTokenValid({ token: refreshTokenFromCookie, jwtSecret: process.env.REFRESH_TOKEN_SECRET });
+        const userExists = await User.findById(user._id)
+        if (!userExists || userExists.refreshToken.includes(refreshTokenFromCookie)) {
+            userExists.refreshToken.filter((token) => token !== refreshTokenFromCookie)
+            await userExists.save();
+            res.clearCookie('token', {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: 'strict',
+            });
+            throw new UnauthenticatedError('Invalid Refresh token');
+        }
     } catch (error) {
-        userExists.refreshToken.filter((token)=>token!==refreshTokenFromCookie)
-        await userExists.save();
         res.clearCookie('token', {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
