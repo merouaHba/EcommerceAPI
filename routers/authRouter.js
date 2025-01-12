@@ -36,12 +36,13 @@ router.get('/google',  (req, res) => {
         accessType: 'offline',
         prompt: 'consent',
         session: false,
-        state
+        state,
+
     })(req, res);
 });
 
 router.get('/google/callback',
-    passport.authenticate('google', { failureRedirect: '/login?error=authentication%20failed', session: false }),
+    passport.authenticate('google', { failureRedirect: '/login', session: false }),
     async function (req, res) {
        
 try{        const user = req.user
@@ -91,7 +92,7 @@ router.get('/facebook', (req, res) => {
 });
 
 router.get('/facebook/callback',
-    passport.authenticate('facebook', { failureRedirect: '/login?error=authentication%20failed', session: false }),
+    passport.authenticate('facebook', { failureRedirect: '/login', session: false }),
    async function (req, res) {
       try{
         const user = req.user

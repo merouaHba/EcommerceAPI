@@ -22,9 +22,6 @@ passport.use(new GoogleStrategy({
             const stateData = JSON.parse(Buffer.from(req.query.state, 'base64').toString());
             role = stateData.role;
         }
-        if (role === "admin") {
-            throw new BadRequestError("this role can't connect with this feature")
-        }
         if (isFirstAccount) role = 'admin';
         const userInfo = profile._json;
 
@@ -37,11 +34,10 @@ passport.use(new GoogleStrategy({
         if (user) {
            
             if (user.role !== role) {
-                throw new ForbiddenError(`This account is registred as a ${user.role}. Please Log in through the correct portal`)
-
+                return done(new ForbiddenError(`This account is registred as a ${user.role}. Please Log in through the correct portal`), null)
             }
             if (user.isBlocked) {
-                throw new BadRequestError('Account is Blocked.')
+                return  done(new ForbiddenError(`This account is Blocked.`), null)
             }
             if (!user.isVerified) {
                 userExists.isVerified = true;
@@ -58,7 +54,7 @@ passport.use(new GoogleStrategy({
             await user.save();
         } else {
             if (role === "seller") {
-                throw new BadRequestError("this role can't connect with this feature")
+                return  done(new BadRequestError("this role can't connect with this feature"), null)
             }
             user = await User.create({
                 firstname: userInfo.given_name || 'User',
@@ -76,7 +72,7 @@ passport.use(new GoogleStrategy({
 
         return done(null, user);
     } catch (error) {
-        return done(error, null);
+        return done(new BadRequestError("Authentication failed"), null);
     }
 }));
 
@@ -97,9 +93,6 @@ passport.use(new FacebookStrategy({
             const stateData = JSON.parse(Buffer.from(req.query.state, 'base64').toString());
             role = stateData.role;
         }
-        if (role === "admin") {
-            throw new BadRequestError("this role can't connect with this feature")
-        }
         if (isFirstAccount) role = 'admin';
         const userInfo = profile._json;
 
@@ -113,11 +106,12 @@ passport.use(new FacebookStrategy({
 
         if (user) {
             if (user.role !== role) {
-                throw new ForbiddenError(`This account is registred as a ${user.role}. Please Log in through the correct portal`)
+                return   done(new ForbiddenError(`This account is registred as a ${user.role}. Please Log in through the correct portal`)
+, null)
 
             }
             if (user.isBlocked) {
-                throw new BadRequestError('Account is Blocked.')
+                return done(new ForbiddenError(`This account is Blocked.`), null)
             }
             if (!user.isVerified) {
                 userExists.isVerified = true;
@@ -133,8 +127,8 @@ passport.use(new FacebookStrategy({
             }
             await user.save();
         } else {
-             if (role === "seller") {
-                throw new BadRequestError("this role can't connect with this feature")
+            if (role === "seller") {
+                return done(new BadRequestError("this role can't connect with this feature"), null)
             }
             user = await User.create({
                 firstname: userInfo.first_name || 'User',
