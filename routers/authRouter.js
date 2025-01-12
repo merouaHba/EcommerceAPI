@@ -42,55 +42,124 @@ router.get('/google',  (req, res) => {
     })(req, res);
 });
 
-router.get('/google/callback',
-    async function (req, res,next) {
-        passport.authenticate('google',async (err,user)=> { 
-        // const { err, user } = req
-        console.log(user)
-        console.log(err)
-        if (err) { 
-            res.cookie('error', err instanceof CustomAPIError ? err.message :
-                 "authentication failed", {
-                path: '/',
-                secure: process.env.NODE_ENV === 'production',
-                signed: true,
-                sameSite: process.env.NODE_ENV === 'production' ? 'lax' : "strict",
-            });
-            res.redirect(`${process.env.FRONTEND_URL}${user.role === 'seller' ? '/seller/' : '/'}login`);
-        }
+// router.get('/google/callback',
+//     async function (req, res,next) {
+//         passport.authenticate('google',async (err,user)=> { 
+//         // const { err, user } = req
+//         console.log(user)
+//         console.log(err)
+//         if (err) { 
+//             res.cookie('error', err instanceof CustomAPIError ? err.message :
+//                  "authentication failed", {
+//                 path: '/',
+//                 secure: process.env.NODE_ENV === 'production',
+//                 signed: true,
+//                 sameSite: process.env.NODE_ENV === 'production' ? 'lax' : "strict",
+//             });
+//             res.redirect(`${process.env.FRONTEND_URL}${user.role === 'seller' ? '/seller/' : '/'}login`);
+//         }
        
-try{        
+// try{        
 
-        // generate token
-        const tokenUser = createTokenUser(user);
-    const refreshToken = attachCookiesToResponse({ res, rememberMe: false, user: tokenUser });
-         user.refreshToken.push(refreshToken);
-        await user.save();
-        const accessToken = createJWT({ payload: tokenUser, expireDate: '15m', jwtSecret: process.env.ACCESS_TOKEN_SECRET })
-    res.cookie('accessToken', accessToken, {
-        secure: process.env.NODE_ENV === 'production',
-        signed: true,
-        sameSite: process.env.NODE_ENV === 'production' ? 'lax' : "strict",
-    });
-    res.cookie('user', user, {
-        secure: process.env.NODE_ENV === 'production',
-        signed: true,
-        sameSite: process.env.NODE_ENV === 'production' ? 'lax' : "strict",
-    });
+//         // generate token
+//         const tokenUser = createTokenUser(user);
+//     const refreshToken = attachCookiesToResponse({ res, rememberMe: false, user: tokenUser });
+//          user.refreshToken.push(refreshToken);
+//         await user.save();
+//         const accessToken = createJWT({ payload: tokenUser, expireDate: '15m', jwtSecret: process.env.ACCESS_TOKEN_SECRET })
+//     res.cookie('accessToken', accessToken, {
+//         secure: process.env.NODE_ENV === 'production',
+//         signed: true,
+//         sameSite: process.env.NODE_ENV === 'production' ? 'lax' : "strict",
+//     });
+//     res.cookie('user', user, {
+//         secure: process.env.NODE_ENV === 'production',
+//         signed: true,
+//         sameSite: process.env.NODE_ENV === 'production' ? 'lax' : "strict",
+//     });
 
 
-    res.redirect(`${process.env.FRONTEND_URL}${user.role === 'seller' ? '/seller/dashboard' : ''}`);
-} catch (error) {
-    res.cookie('error', "authentication failed", {
-        path: '/',
-        secure: process.env.NODE_ENV === 'production',
-        signed: true,
-        sameSite: process.env.NODE_ENV === 'production' ? 'lax' : "strict",
-    });
-    res.redirect(`${process.env.FRONTEND_URL}${user.role === 'seller' ? '/seller/' : '/'}login`);
-}
-        })(req, res,next)
-    });
+//     res.redirect(`${process.env.FRONTEND_URL}${user.role === 'seller' ? '/seller/dashboard' : ''}`);
+// } catch (error) {
+//     res.cookie('error', "authentication failed", {
+//         path: '/',
+//         secure: process.env.NODE_ENV === 'production',
+//         signed: true,
+//         sameSite: process.env.NODE_ENV === 'production' ? 'lax' : "strict",
+//     });
+//     res.redirect(`${process.env.FRONTEND_URL}${user.role === 'seller' ? '/seller/' : '/'}login`);
+// }
+//         })(req, res,next)
+//     });
+
+router.get('/google/callback', (req, res, next) => {
+    passport.authenticate('google', { session: false }, async (err, user, info) => {
+        const cookieOptions = {
+            path: '/',
+            secure: process.env.NODE_ENV === 'production',
+            signed: true,
+            sameSite: process.env.NODE_ENV === 'production' ? 'lax' : "strict",
+        };
+
+        // Handle authentication errors or failures
+        if (err || !user) {
+            const errorMessage = err instanceof CustomAPIError ? err.message :
+                info?.message || "Authentication failed";
+
+            res.cookie('error', errorMessage, cookieOptions);
+
+            // Default to user role if no user object exists
+            const targetRole = user?.role || 'user';
+            return res.redirect(`${process.env.FRONTEND_URL}${targetRole === 'seller' ? '/seller/' : '/'}login`);
+        }
+
+        try {
+            // Generate tokens and update user
+            const tokenUser = createTokenUser(user);
+            const refreshToken = attachCookiesToResponse({
+                res,
+                rememberMe: false,
+                user: tokenUser
+            });
+
+            // Update user's refresh tokens
+            user.refreshToken = user.refreshToken || [];
+            user.refreshToken.push(refreshToken);
+            await user.save();
+
+            // Generate access token
+            const accessToken = createJWT({
+                payload: tokenUser,
+                expireDate: '15m',
+                jwtSecret: process.env.ACCESS_TOKEN_SECRET
+            });
+
+            // Set authentication cookies
+            res.cookie('accessToken', accessToken, cookieOptions);
+
+            // Sanitize user data before setting in cookie
+            const sanitizedUser = {
+                _id: user._id,
+                role: user.role,
+                firstname: user.firstname,
+                lastname: user.lastname,
+                email: user.email,
+                profilePicture: user.profilePicture
+            };
+
+            res.cookie('user', JSON.stringify(sanitizedUser), cookieOptions);
+
+            // Redirect to appropriate dashboard
+            return res.redirect(`${process.env.FRONTEND_URL}${user.role === 'seller' ? '/seller/dashboard' : '/dashboard'}`);
+
+        } catch (error) {
+            console.error('Auth completion error:', error);
+
+            res.cookie('error', "Authentication process failed", cookieOptions);
+            return res.redirect(`${process.env.FRONTEND_URL}${user?.role === 'seller' ? '/seller/' : '/'}login`);
+        }
+    })(req, res, next);
+});
 router.get('/facebook', (req, res) => {
     const state = req.query.role ? Buffer.from(JSON.stringify({ role: req.query.role })).toString('base64') : undefined;
 
