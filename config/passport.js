@@ -33,10 +33,10 @@ passport.use(new GoogleStrategy({
         if (user) {
            
             if (user.role !== role) {
-                return done(new ForbiddenError(`This account is registred as a ${user.role}. Please Log in through the correct portal`), null)
+                return done(null,false,new ForbiddenError(`This account is registred as a ${user.role}. Please Log in through the correct portal`))
             }
             if (user.isBlocked) {
-                return  done(new ForbiddenError(`This account is Blocked.`), null)
+                return done(null,false,new ForbiddenError(`This account is Blocked.`))
             }
             if (!user.isVerified) {
                 userExists.isVerified = true;
@@ -53,7 +53,7 @@ passport.use(new GoogleStrategy({
             await user.save();
         } else {
             if (role === "seller") {
-                return  done(new BadRequestError("this role can't connect with this feature"), null)
+                return  done(null,false,new BadRequestError("this role can't connect with this feature"))
             }
             user = await User.create({
                 firstname: userInfo.given_name || 'User',
@@ -71,7 +71,7 @@ passport.use(new GoogleStrategy({
 
         return done(null, user);
     } catch (error) {
-        return done(new BadRequestError("Authentication failed"), null);
+        return done(null, false, new BadRequestError("Authentication failed"));
     }
 }));
 
@@ -104,8 +104,7 @@ passport.use(new FacebookStrategy({
 
         if (user) {
             if (user.role !== role) {
-                return   done(new ForbiddenError(`This account is registred as a ${user.role}. Please Log in through the correct portal`)
-, null)
+                return done(null, false, new ForbiddenError(`This account is registred as a ${user.role}. Please Log in through the correct portal`))
 
             }
             if (user.isBlocked) {
@@ -126,7 +125,7 @@ passport.use(new FacebookStrategy({
             await user.save();
         } else {
             if (role === "seller") {
-                return done(new BadRequestError("this role can't connect with this feature"), null)
+                return done(null, false, new BadRequestError("this role can't connect with this feature"))
             }
             user = await User.create({
                 firstname: userInfo.first_name || 'User',
@@ -145,7 +144,7 @@ passport.use(new FacebookStrategy({
 
         return done(null,user);
     } catch (error) {
-        return done(error, null);
+        return done(null, false, new BadRequestError("Authentication failed"));
     }
 }));
 
