@@ -114,7 +114,7 @@ router.get('/facebook/callback',
               signed: true,
               sameSite: process.env.NODE_ENV === 'production' ? 'lax' : "strict",
           });
-
+          console.log(res.getHeaders());
 
           res.redirect(`${process.env.FRONTEND_URL}${user.role === 'seller' ? '/seller/dashboard' : ''}`);
     } catch (error) {

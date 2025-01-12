@@ -22,7 +22,9 @@ passport.use(new GoogleStrategy({
             const stateData = JSON.parse(Buffer.from(req.query.state, 'base64').toString());
             role = stateData.role;
         }
-
+        if (role === "admin") {
+            throw new BadRequestError("this role can't connect with this feature")
+        }
         if (isFirstAccount) role = 'admin';
         const userInfo = profile._json;
 
@@ -95,7 +97,9 @@ passport.use(new FacebookStrategy({
             const stateData = JSON.parse(Buffer.from(req.query.state, 'base64').toString());
             role = stateData.role;
         }
-
+        if (role === "admin") {
+            throw new BadRequestError("this role can't connect with this feature")
+        }
         if (isFirstAccount) role = 'admin';
         const userInfo = profile._json;
 
