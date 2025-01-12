@@ -14,7 +14,6 @@ passport.use(new GoogleStrategy({
     passReqToCallback: true
 }, async (req, accessToken, refreshToken, profile, done) => {
     try {
-        console.log(req.query)
         const isFirstAccount = (await User.countDocuments({})) === 0;
         let role = 'user';
 
@@ -85,7 +84,6 @@ passport.use(new FacebookStrategy({
     passReqToCallback: true
 }, async (req, accessToken, refreshToken, profile, done) => {
     try {
-        console.log(accessToken, refreshToken, profile)
         const isFirstAccount = (await User.countDocuments({})) === 0;
         let role = 'user';
 

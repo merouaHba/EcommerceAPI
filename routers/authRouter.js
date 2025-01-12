@@ -54,13 +54,11 @@ try{        const user = req.user
         await user.save();
         const accessToken = createJWT({ payload: tokenUser, expireDate: '15m', jwtSecret: process.env.ACCESS_TOKEN_SECRET })
     res.cookie('accessToken', accessToken, {
-        path: '/',
         secure: process.env.NODE_ENV === 'production',
         signed: true,
         sameSite: process.env.NODE_ENV === 'production' ? 'lax' : "strict",
     });
     res.cookie('user', user, {
-        path: '/',
         secure: process.env.NODE_ENV === 'production',
         signed: true,
         sameSite: process.env.NODE_ENV === 'production' ? 'lax' : "strict",
