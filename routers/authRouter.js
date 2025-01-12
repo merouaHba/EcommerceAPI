@@ -150,6 +150,7 @@ router.get('/google/callback', (req, res, next) => {
             console.log(res.getHeaders())
 
             // Redirect to appropriate dashboard
+            return res.send("hi")
             return res.redirect(`${process.env.FRONTEND_URL}${user.role === 'seller' ? '/seller/dashboard' : '/'}`);
 
         } catch (error) {
