@@ -27,9 +27,10 @@ router.put('/change-password',authenticateUser ,changePassword);
 
 
 
-// passport config
-require('../config/passport');
-router.get('/google',  (req, res) => {
+
+router.get('/google', (req, res) => {
+    // passport config
+    require('../config/passport');
     const state = req.query.role ? Buffer.from(JSON.stringify({ role: req.query.role })).toString('base64') : undefined;
 
     passport.authenticate('google', {
@@ -48,6 +49,8 @@ router.get('/google',  (req, res) => {
 });
 
 router.get('/google/callback', (req, res, next) => {
+    // passport config
+    require('../config/passport');
     passport.authenticate('google', { session: false }, async (err, user, info) => {
         const cookieOptions = {
             path: '/',
@@ -102,6 +105,10 @@ router.get('/google/callback', (req, res, next) => {
     })(req, res, next);
 });
 router.get('/facebook', (req, res) => {
+    // passport config
+    require('../config/passport');
+    // passport config
+    require('../config/passport');
     const state = req.query.role ? Buffer.from(JSON.stringify({ role: req.query.role })).toString('base64') : undefined;
 
     passport.authenticate('facebook', {
@@ -115,6 +122,8 @@ router.get('/facebook', (req, res) => {
 });
 
 router.get('/facebook/callback', (req, res, next) => {
+    // passport config
+    require('../config/passport');
     passport.authenticate('google', { session: false }, async (err, user, info) => {
         const cookieOptions = {
             path: '/',
