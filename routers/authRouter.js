@@ -24,6 +24,11 @@ router.post('/resend-verification-email', resendVerificationEmail);
 router.post('/reset-password', resetPassword);
 router.post('/forgot-password', forgotPassword);
 router.put('/change-password',authenticateUser ,changePassword);
+
+
+
+// passport config
+require('../config/passport');
 router.get('/google',  (req, res) => {
     const state = req.query.role ? Buffer.from(JSON.stringify({ role: req.query.role })).toString('base64') : undefined;
 

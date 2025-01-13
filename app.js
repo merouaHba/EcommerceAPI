@@ -24,8 +24,6 @@ const express = require('express')
 const app = express();
 
 
-// passport config
-require('./config/passport');
 
 // Set trust proxy to true
 app.enable('trust proxy');
