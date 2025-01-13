@@ -109,7 +109,7 @@ router.get('/facebook', (req, res) => {
     })(req, res);
 });
 
-router.get('/facebbook/callback', (req, res, next) => {
+router.get('/facebook/callback', (req, res, next) => {
     passport.authenticate('google', { session: false }, async (err, user, info) => {
         const cookieOptions = {
             path: '/',
