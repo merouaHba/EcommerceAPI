@@ -12,7 +12,6 @@ const { register,
     changePassword,
     resendVerificationEmail, } = require('../controllers/authController')
 const { authenticateUser } = require('../middlewares/authentication');
-const { StatusCodes } = require('http-status-codes');
 const { CustomAPIError } = require('../errors');
 
 router.post('/register', register)
@@ -49,14 +48,13 @@ router.get('/google', (req, res) => {
 });
 
 router.get('/google/callback', (req, res, next) => {
-    // passport config
-    require('../config/passport');
+
     passport.authenticate('google', { session: false }, async (err, user, info) => {
         const cookieOptions = {
             path: '/',
             secure: process.env.NODE_ENV === 'production',
             signed: true,
-            sameSite: "lax",
+            sameSite: "none",
         };
         console.log(user,err,info)
 
@@ -67,7 +65,7 @@ router.get('/google/callback', (req, res, next) => {
             res.cookie('error', errorMessage, cookieOptions);
 
             const targetRole = user?.role || 'user';
-            return res.redirect(`${process.env.FRONTEND_URL}${targetRole === 'seller' ? '/seller/' : '/'}login`);
+            return res.redirect(`${process.env.FRONTEND_URL}${targetRole === 'seller' ? '/seller/' : '/'}login?cookieSet=true`);
         }
 
         try {
@@ -93,14 +91,14 @@ router.get('/google/callback', (req, res, next) => {
             res.cookie('user', JSON.stringify(tokenUser), cookieOptions);
             console.log(res.getHeaders())
 
-            return res.redirect(`${process.env.FRONTEND_URL}${user.role === 'seller' ? '/seller/dashboard' : '/'}`);
+            return res.redirect(`${process.env.FRONTEND_URL}${user.role === 'seller' ? '/seller/dashboard?cookieSet=true' : '/?cookieSet=true'}`);
 
         } catch (error) {
             console.error('Auth completion error:', error);
 
             res.cookie('error', "Authentication process failed", cookieOptions);
 
-            return res.redirect(`${process.env.FRONTEND_URL}${user?.role === 'seller' ? '/seller/' : '/'}login`);
+            return res.redirect(`${process.env.FRONTEND_URL}${user?.role === 'seller' ? '/seller/' : '/'}login?cookieSet=true`);
         }
     })(req, res, next);
 });
@@ -122,16 +120,14 @@ router.get('/facebook', (req, res) => {
 });
 
 router.get('/facebook/callback', (req, res, next) => {
-    // passport config
-    require('../config/passport');
+
     passport.authenticate('google', { session: false }, async (err, user, info) => {
         const cookieOptions = {
             path: '/',
             secure: process.env.NODE_ENV === 'production',
             signed: true,
-            sameSite: "lax",
+            sameSite: "none",
         };
-        console.log(user, err, info)
 
         if (err || !user) {
             const errorMessage = err instanceof CustomAPIError ? err.message :
@@ -140,7 +136,7 @@ router.get('/facebook/callback', (req, res, next) => {
             res.cookie('error', errorMessage, cookieOptions);
 
             const targetRole = user?.role || 'user';
-            return res.redirect(`${process.env.FRONTEND_URL}${targetRole === 'seller' ? '/seller/' : '/'}login`);
+            return res.redirect(`${process.env.FRONTEND_URL}${targetRole === 'seller' ? '/seller/' : '/'}login?cookieSet=true`);
         }
 
         try {
@@ -166,14 +162,14 @@ router.get('/facebook/callback', (req, res, next) => {
             res.cookie('user', JSON.stringify(tokenUser), cookieOptions);
             console.log(res.getHeaders())
 
-            return res.redirect(`${process.env.FRONTEND_URL}${user.role === 'seller' ? '/seller/dashboard' : '/'}`);
+            return res.redirect(`${process.env.FRONTEND_URL}${user.role === 'seller' ? '/seller/dashboard?cookieSet=true' : '/?cookieSet=true'}`);
 
         } catch (error) {
             console.error('Auth completion error:', error);
 
             res.cookie('error', "Authentication process failed", cookieOptions);
 
-            return res.redirect(`${process.env.FRONTEND_URL}${user?.role === 'seller' ? '/seller/' : '/'}login`);
+            return res.redirect(`${process.env.FRONTEND_URL}${user?.role === 'seller' ? '/seller/' : '/'}login?cookieSet=true`);
         }
     })(req, res, next);
 });
