@@ -73,7 +73,7 @@ app.use((req, res, next) => {
 
 
 // passport config
-require('../config/passport');
+require('./config/passport');
 
 // Set security HTTP headers
 app.use(helmet());
