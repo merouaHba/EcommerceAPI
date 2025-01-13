@@ -17,7 +17,7 @@ const attachCookiesToResponse = ({ res, rememberMe, user }) => {
     path:'/',
     secure: process.env.NODE_ENV === 'production',
     signed: true,
-    sameSite: process.env.NODE_ENV === 'production'?'lax':"strict",
+    sameSite: process.env.NODE_ENV === 'production'?'none':"strict",
     expires: new Date(new Date(Date.now() + (rememberMe ? (1000 * 60 * 60 * 24 * 30) : (1000 * 60 * 60 * 24)) + (1000 * 60 * 60 ))),
 
   });
