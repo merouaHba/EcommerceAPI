@@ -19,7 +19,7 @@ const attachCookiesToResponse = ({ res, rememberMe, user }) => {
     secure: process.env.NODE_ENV === 'production',
     signed: true,
     sameSite: process.env.NODE_ENV === 'production'?'lax':"strict",
-    expires: new Date(Date.now() + expireTime),
+    maxAge: expireTime,
 
   });
   return token;
