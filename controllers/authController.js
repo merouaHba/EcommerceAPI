@@ -397,7 +397,7 @@ const googleAuth = async (req, res) => {
         accessType: 'offline',
         prompt: 'consent',
         session: false,
-        state,
+        state
 
     })(req, res);
 }
