@@ -26,6 +26,7 @@ router.put('/change-password',authenticateUser ,changePassword);
 
 
 router.get('/set-cookie', (req, res) => {
+    console.log(req.cookies)
     res.status(200).send()
 });
 
