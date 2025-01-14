@@ -22,10 +22,12 @@ passport.use(new GoogleStrategy({
         } = profile._json;
 
         let role = 'user';
+        let redirect = 'login';
         try {
             if (req.query.state) {
                 const stateData = JSON.parse(Buffer.from(req.query.state, 'base64').toString());
                 role = stateData.role;
+                redirect = stateData.redirect;
             }
         } catch (error) {
             console.error('Error parsing state:', error);
@@ -45,13 +47,15 @@ passport.use(new GoogleStrategy({
         if (user) {
             if (user.role !== role) {
                 return done(null, false, {
-                    message: `Authentification failed.`
+                    message: `Authentification failed.`,
+                    redirect: redirect
                 });
             }
 
             if (user.isBlocked) {
                 return done(null, false, {
-                    message: "This account has been blocked."
+                    message: "This account has been blocked.",
+                    redirect: redirect
                 });
             }
 
@@ -72,7 +76,8 @@ passport.use(new GoogleStrategy({
 
             if (role === "seller") {
                 return done(null, false, {
-                    message: "Seller accounts cannot use Google authentication for registration"
+                    message: "Seller accounts cannot use Google authentication for registration",
+                    redirect: redirect
                 });
             }
             try {
@@ -91,14 +96,16 @@ passport.use(new GoogleStrategy({
             } catch (createError) {
                 console.error('Error creating user:', createError);
                 return done(null, false, {
-                    message: "Failed to create new user account"
+                    message: "Failed to create new user account",
+                    redirect:redirect
                 });
             }
         }
 
         if (!user) {
             return done(null, false, {
-                message: "Failed to process user account"
+                message: "Failed to process user account",
+                redirect: redirect
             });
         }
 
@@ -107,7 +114,8 @@ passport.use(new GoogleStrategy({
     } catch (error) {
         console.error('Authentication error:', error);
         return done(null, false, {
-            message: error.message || "Authentication failed. Please try again."
+            message: error.message || "Authentication failed. Please try again.",
+            redirect: redirect
         });
     }
 }));
@@ -130,10 +138,12 @@ passport.use(new FacebookStrategy({
         const profilePicture = profile.photos[0].value
 
         let role = 'user';
+        let redirect = 'login';
         try {
             if (req.query.state) {
                 const stateData = JSON.parse(Buffer.from(req.query.state, 'base64').toString());
                 role = stateData.role;
+                redirect = stateData.redirect;
             }
         } catch (error) {
             console.error('Error parsing state:', error);
@@ -153,13 +163,15 @@ passport.use(new FacebookStrategy({
         if (user) {
             if (user.role !== role) {
                 return done(null, false, {
-                    message: `Authentification failed.`
+                    message: `Authentification failed.`,
+                    redirect
                 });
             }
 
             if (user.isBlocked) {
                 return done(null, false, {
-                    message: "This account has been blocked."
+                    message: "This account has been blocked.",
+                    redirect
                 });
             }
 
@@ -180,7 +192,8 @@ passport.use(new FacebookStrategy({
 
             if (role === "seller") {
                 return done(null, false, {
-                    message: "Seller accounts cannot use Facebook authentication for registration"
+                    message: "Seller accounts cannot use Facebook authentication for registration",
+                    redirect
                 });
             }
             try {
@@ -199,14 +212,16 @@ passport.use(new FacebookStrategy({
             } catch (createError) {
                 console.error('Error creating user:', createError);
                 return done(null, false, {
-                    message: "Failed to create new user account"
+                    message: "Failed to create new user account",
+                    redirect
                 });
             }
         }
 
         if (!user) {
             return done(null, false, {
-                message: "Failed to process user account"
+                message: "Failed to process user account",
+                redirect
             });
         }
 
@@ -215,7 +230,8 @@ passport.use(new FacebookStrategy({
     } catch (error) {
         console.error('Authentication error:', error);
         return done(null, false, {
-            message: error.message || "Authentication failed. Please try again."
+            message: error.message || "Authentication failed. Please try again.",
+            redirect
         });
     }
 }));

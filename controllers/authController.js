@@ -377,8 +377,15 @@ const checkErrorCookies = async (req, res) => {
     
 }
 const googleAuth = async (req, res) => {
+    const queryObject = {}
+    if (req.query.role) {
+        queryObject.role = req.query.role
+    }
+    if (req.query.redirect) {
+        queryObject.role = req.query.redirect
+    }
 
-    const state = req.query.role ? Buffer.from(JSON.stringify({ role: req.query.role })).toString('base64') : undefined;
+    const state = queryObject ? Buffer.from(JSON.stringify(queryObject)).toString('base64') : undefined;
 
     passport.authenticate('google', {
         scope: [
@@ -414,7 +421,7 @@ const googleCallback=async(req, res, next) => {
                 res.cookie('error', errorMessage, cookieOptions);
 
                 const targetRole = user?.role || 'user';
-                return res.redirect(`${process.env.FRONTEND_URL}${targetRole === 'seller' ? '/seller/' : '/'}login?cookieSet=true`);
+                return res.redirect(`${process.env.FRONTEND_URL}${targetRole === 'seller' ? '/seller/' : '/'}${info.redirect}?cookieSet=true`);
             }
 
             try {
@@ -449,13 +456,20 @@ const googleCallback=async(req, res, next) => {
 
                 res.cookie('error', "Authentication process failed", cookieOptions);
 
-                return res.redirect(`${process.env.FRONTEND_URL}${user?.role === 'seller' ? '/seller/' : '/'}login?cookieSet=true`);
+                return res.redirect(`${process.env.FRONTEND_URL}${user?.role === 'seller' ? '/seller/' : '/'}${info.redirect}?cookieSet=true`);
             }
         })(req, res, next);
     }
 const facebookAuth =(req, res) => {
-  
-    const state = req.query.role ? Buffer.from(JSON.stringify({ role: req.query.role })).toString('base64') : undefined;
+    const queryObject = {}
+    if (req.query.role) {
+        queryObject.role = req.query.role
+    }
+    if (req.query.redirect) {
+        queryObject.role = req.query.redirect
+    }
+
+    const state = queryObject ? Buffer.from(JSON.stringify(queryObject)).toString('base64') : undefined;
 
     passport.authenticate('facebook', {
         scope: [
@@ -486,7 +500,7 @@ const facebookCallback =
                 res.cookie('error', errorMessage, cookieOptions);
 
                 const targetRole = user?.role || 'user';
-                return res.redirect(`${process.env.FRONTEND_URL}${targetRole === 'seller' ? '/seller/' : '/'}login?cookieSet=true`);
+                return res.redirect(`${process.env.FRONTEND_URL}${targetRole === 'seller' ? '/seller/' : '/'}${info.redirect}?cookieSet=true`);
             }
 
             try {
@@ -521,7 +535,7 @@ const facebookCallback =
 
                 res.cookie('error', "Authentication process failed", cookieOptions);
 
-                return res.redirect(`${process.env.FRONTEND_URL}${user?.role === 'seller' ? '/seller/' : '/'}login?cookieSet=true`);
+                return res.redirect(`${process.env.FRONTEND_URL}${user?.role === 'seller' ? '/seller/' : '/'}${info.redirect}?cookieSet=true`);
             }
         })(req, res, next);
     }
