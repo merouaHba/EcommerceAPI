@@ -90,7 +90,10 @@ app.use(cors({
         'Accept',
         'Authorization',
         'withcredentials'
-]
+    ],
+    exposedHeaders: [
+        'set-cookie'
+    ]
     
 }));
 // Data sanitization against XSS
