@@ -150,8 +150,10 @@ router.get('/facebook/callback', (req, res, next) => {
             res.cookie('accessToken', accessToken, cookieOptions);
             res.setHeader('Authorization', `Bearer ${accessToken}`)
             console.log(res.getHeaders())
-
-            return res.redirect(`${process.env.FRONTEND_URL}${user.role === 'seller' ? '/seller/dashboard?cookieSet=true' : '/?cookieSet=true'}`);
+setTimeout(() => {
+    
+    return res.redirect(`${process.env.FRONTEND_URL}${user.role === 'seller' ? '/seller/dashboard?cookieSet=true' : '/?cookieSet=true'}`);
+}, 1000);
 
         } catch (error) {
 
