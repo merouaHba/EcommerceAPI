@@ -92,7 +92,8 @@ app.use(cors({
         'withcredentials'
     ],
     exposedHeaders: [
-        'set-cookie'
+        'set-cookie',
+        "Authorization"
     ]
     
 }));

@@ -59,13 +59,10 @@ router.get('/google/callback', (req, res, next) => {
         console.log(user,err,info)
 
         if (err || !user) {
-            const errorMessage = err instanceof CustomAPIError ? err.message :
-                info?.message || "Authentication failed";
-
-            res.cookie('error', errorMessage, cookieOptions);
+            
 
             const targetRole = user?.role || 'user';
-            return res.redirect(`${process.env.FRONTEND_URL}${targetRole === 'seller' ? '/seller/' : '/'}login?cookieSet=true`);
+            return res.redirect(`${process.env.FRONTEND_URL}${targetRole === 'seller' ? '/seller/' : '/'}login`);
         }
 
         try {
@@ -86,19 +83,16 @@ router.get('/google/callback', (req, res, next) => {
                 jwtSecret: process.env.ACCESS_TOKEN_SECRET
             });
 
-            res.cookie('accessToken', accessToken, cookieOptions);
-
-            res.cookie('user', JSON.stringify(tokenUser), cookieOptions);
+            res.setHeader('Authorization', `Bearer ${accessToken}`)
             console.log(res.getHeaders())
 
-            return res.redirect(`${process.env.FRONTEND_URL}${user.role === 'seller' ? '/seller/dashboard?cookieSet=true' : '/?cookieSet=true'}`);
+            return res.redirect(`${process.env.FRONTEND_URL}${user.role === 'seller' ? '/seller/dashboard' : '/'}`);
 
         } catch (error) {
             console.error('Auth completion error:', error);
 
-            res.cookie('error', "Authentication process failed", cookieOptions);
 
-            return res.redirect(`${process.env.FRONTEND_URL}${user?.role === 'seller' ? '/seller/' : '/'}login?cookieSet=true`);
+            return res.redirect(`${process.env.FRONTEND_URL}${user?.role === 'seller' ? '/seller/' : '/'}login`);
         }
     })(req, res, next);
 });
@@ -130,13 +124,9 @@ router.get('/facebook/callback', (req, res, next) => {
         };
 
         if (err || !user) {
-            const errorMessage = err instanceof CustomAPIError ? err.message :
-                info?.message || "Authentication failed";
-
-            res.cookie('error', errorMessage, cookieOptions);
 
             const targetRole = user?.role || 'user';
-            return res.redirect(`${process.env.FRONTEND_URL}${targetRole === 'seller' ? '/seller/' : '/'}login?cookieSet=true`);
+            return res.redirect(`${process.env.FRONTEND_URL}${targetRole === 'seller' ? '/seller/' : '/'}login`);
         }
 
         try {
@@ -158,18 +148,14 @@ router.get('/facebook/callback', (req, res, next) => {
             });
 
             res.cookie('accessToken', accessToken, cookieOptions);
-
-            res.cookie('user', JSON.stringify(tokenUser), cookieOptions);
+            res.setHeader('Authorization', `Bearer ${accessToken}`)
             console.log(res.getHeaders())
 
-            return res.redirect(`${process.env.FRONTEND_URL}${user.role === 'seller' ? '/seller/dashboard?cookieSet=true' : '/?cookieSet=true'}`);
+            return res.redirect(`${process.env.FRONTEND_URL}${user.role === 'seller' ? '/seller/dashboard' : '/'}`);
 
         } catch (error) {
-            console.error('Auth completion error:', error);
 
-            res.cookie('error', "Authentication process failed", cookieOptions);
-
-            return res.redirect(`${process.env.FRONTEND_URL}${user?.role === 'seller' ? '/seller/' : '/'}login?cookieSet=true`);
+            return res.redirect(`${process.env.FRONTEND_URL}${user?.role === 'seller' ? '/seller/' : '/'}login`);
         }
     })(req, res, next);
 });
