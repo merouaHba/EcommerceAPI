@@ -25,10 +25,6 @@ router.post('/forgot-password', forgotPassword);
 router.put('/change-password',authenticateUser ,changePassword);
 
 
-router.get('/set-cookie', (req, res) => {
-    console.log(req)
-    res.status(200).send()
-});
 
 
 router.get('/google', (req, res) => {
