@@ -86,7 +86,7 @@ router.get('/google/callback', (req, res, next) => {
             res.setHeader('Authorization', `Bearer ${accessToken}`)
             console.log(res.getHeaders())
 
-            return res.redirect(`${process.env.FRONTEND_URL}${user.role === 'seller' ? '/seller/dashboard' : '/'}`);
+            return res.redirect(`${process.env.FRONTEND_URL}${user.role === 'seller' ? '/seller/dashboard?cookieSet=true' : '/?cookieSet=true'}`);
 
         } catch (error) {
             console.error('Auth completion error:', error);
@@ -151,7 +151,7 @@ router.get('/facebook/callback', (req, res, next) => {
             res.setHeader('Authorization', `Bearer ${accessToken}`)
             console.log(res.getHeaders())
 
-            return res.redirect(`${process.env.FRONTEND_URL}${user.role === 'seller' ? '/seller/dashboard' : '/'}`);
+            return res.redirect(`${process.env.FRONTEND_URL}${user.role === 'seller' ? '/seller/dashboard?cookieSet=true' : '/?cookieSet=true'}`);
 
         } catch (error) {
 
