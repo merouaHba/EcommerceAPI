@@ -26,8 +26,8 @@ passport.use(new GoogleStrategy({
         try {
             if (req.query.state) {
                 const stateData = JSON.parse(Buffer.from(req.query.state, 'base64').toString());
-                role = stateData.role;
-                redirect = stateData.redirect;
+                role = stateData.role?stateData.role:role;
+                redirect = stateData.redirect?stateData.redirect:redirect;
             }
         } catch (error) {
             console.error('Error parsing state:', error);
@@ -142,8 +142,8 @@ passport.use(new FacebookStrategy({
         try {
             if (req.query.state) {
                 const stateData = JSON.parse(Buffer.from(req.query.state, 'base64').toString());
-                role = stateData.role;
-                redirect = stateData.redirect;
+                role = stateData.role ? stateData.role : role;
+                redirect = stateData.redirect ? stateData.redirect : redirect;
             }
         } catch (error) {
             console.error('Error parsing state:', error);
