@@ -478,8 +478,7 @@ const facebookAuth =(req, res) => {
         state
     })(req, res);
 };
-const facebookCallback =
-    (req, res, next) => {
+const facebookCallback =(req, res, next) => {
 
         passport.authenticate('facebook', { session: false }, async (err, user, info) => {
             const cookieOptions = {
