@@ -466,7 +466,7 @@ const facebookAuth =(req, res) => {
         queryObject.role = req.query.role
     }
     if (req.query.redirect) {
-        queryObject.role = req.query.redirect
+        queryObject.redirect = req.query.redirect
     }
 
     const state = queryObject ? Buffer.from(JSON.stringify(queryObject)).toString('base64') : undefined;
