@@ -144,6 +144,7 @@ try{
 };
 
 const login = async (req, res) => {
+    console.log(req)
     const { email, password,role,rememberMe} = req.body
     if (!email || !password) {
         throw new BadRequestError('Please provide userName and password')
