@@ -356,6 +356,175 @@ const changePassword = async (req, res) => {
     res.status(StatusCodes.OK).json({ user: tokenUser, accessToken });
 
 }
+const checkAuthCookies=async(req,res) => {
+    const user = await User.findOne({ _id: req.user._id }).select('firstname lastname profilePicture email mobile role address');
+
+    if (!user) {
+        throw new CustomError.NotFoundError(`No user with id : ${id}`);
+    }
+    const tokenUser = createTokenUser(user);
+    const refreshToken = attachCookiesToResponse({ res, rememberMe: false, user: tokenUser });
+    user.refreshToken = user.refreshToken?.push(refreshToken) || [refreshToken];
+    await user.save();
+    const accessToken = createJWT({ payload: tokenUser, expireDate: '15m', jwtSecret: process.env.ACCESS_TOKEN_SECRET })
+    res.status(StatusCodes.OK).json({ user: tokenUser, accessToken });
+
+}
+const checkErrorCookies = async (req, res) => {
+    const error = req.signedCookies?.error
+    res.status(StatusCodes.OK).json({ error });
+
+    
+}
+const googleAuth = async (req, res) => {
+
+    const state = req.query.role ? Buffer.from(JSON.stringify({ role: req.query.role })).toString('base64') : undefined;
+
+    passport.authenticate('google', {
+        scope: [
+            'profile',
+            'email',
+            'https://www.googleapis.com/auth/userinfo.profile',
+            'https://www.googleapis.com/auth/userinfo.email'
+        ],
+        accessType: 'offline',
+        prompt: 'consent',
+        session: false,
+        state,
+
+    })(req, res);
+}
+const googleCallback=async(req, res, next) => {
+
+        passport.authenticate('google', { session: false }, async (err, user, info) => {
+            const cookieOptions = {
+                path: '/',
+                secure: process.env.NODE_ENV === 'production',
+                signed: true,
+                sameSite: "none",
+                expires: new Date(new Date(Date.now() + (1000 * 60 * 60 * 2))),
+
+            };
+            console.log(user, err, info)
+
+            if (err || !user) {
+                const errorMessage = err instanceof CustomAPIError ? err.message :
+                    info?.message || "Authentication failed";
+
+                res.cookie('error', errorMessage, cookieOptions);
+
+                const targetRole = user?.role || 'user';
+                return res.redirect(`${process.env.FRONTEND_URL}${targetRole === 'seller' ? '/seller/' : '/'}login?cookieSet=true`);
+            }
+
+            try {
+                const tokenUser = createTokenUser(user);
+                const refreshToken = attachCookiesToResponse({
+                    res,
+                    rememberMe: false,
+                    user: tokenUser
+                });
+
+                user.refreshToken = user.refreshToken || [];
+                user.refreshToken.push(refreshToken);
+                await user.save();
+
+                const accessToken = createJWT({
+                    payload: tokenUser,
+                    expireDate: '15m',
+                    jwtSecret: process.env.ACCESS_TOKEN_SECRET
+                });
+
+                res.cookie('accessToken', accessToken, cookieOptions);
+
+                res.cookie('user', JSON.stringify(tokenUser), cookieOptions);
+                console.log(res.getHeaders())
+                setTimeout(() => {
+
+                    return res.redirect(`${process.env.FRONTEND_URL}${user.role === 'seller' ? '/seller/dashboard?cookieSet=true' : '/?cookieSet=true'}`);
+                }, 1000)
+
+            } catch (error) {
+                console.error('Auth completion error:', error);
+
+                res.cookie('error', "Authentication process failed", cookieOptions);
+
+                return res.redirect(`${process.env.FRONTEND_URL}${user?.role === 'seller' ? '/seller/' : '/'}login?cookieSet=true`);
+            }
+        })(req, res, next);
+    }
+const facebookAuth =(req, res) => {
+  
+    const state = req.query.role ? Buffer.from(JSON.stringify({ role: req.query.role })).toString('base64') : undefined;
+
+    passport.authenticate('facebook', {
+        scope: [
+            'public_profile',
+            'email'
+        ],
+        session: false,
+        state
+    })(req, res);
+};
+const facebookCallback =
+    (req, res, next) => {
+
+        passport.authenticate('google', { session: false }, async (err, user, info) => {
+            const cookieOptions = {
+                path: '/',
+                secure: process.env.NODE_ENV === 'production',
+                signed: true,
+                sameSite: "none",
+                expires: new Date(new Date(Date.now() + (1000 * 60 * 60 * 2))),
+
+            };
+
+            if (err || !user) {
+                const errorMessage = err instanceof CustomAPIError ? err.message :
+                    info?.message || "Authentication failed";
+
+                res.cookie('error', errorMessage, cookieOptions);
+
+                const targetRole = user?.role || 'user';
+                return res.redirect(`${process.env.FRONTEND_URL}${targetRole === 'seller' ? '/seller/' : '/'}login?cookieSet=true`);
+            }
+
+            try {
+                const tokenUser = createTokenUser(user);
+                const refreshToken = attachCookiesToResponse({
+                    res,
+                    rememberMe: false,
+                    user: tokenUser
+                });
+
+                user.refreshToken = user.refreshToken || [];
+                user.refreshToken.push(refreshToken);
+                await user.save();
+
+                const accessToken = createJWT({
+                    payload: tokenUser,
+                    expireDate: '15m',
+                    jwtSecret: process.env.ACCESS_TOKEN_SECRET
+                });
+
+                res.cookie('accessToken', accessToken, cookieOptions);
+
+                res.cookie('user', JSON.stringify(tokenUser), cookieOptions);
+                console.log(res.getHeaders())
+
+                setTimeout(() => {
+
+                    return res.redirect(`${process.env.FRONTEND_URL}${user.role === 'seller' ? '/seller/dashboard?cookieSet=true' : '/?cookieSet=true'}`);
+                }, 1000)
+            } catch (error) {
+                console.error('Auth completion error:', error);
+
+                res.cookie('error', "Authentication process failed", cookieOptions);
+
+                return res.redirect(`${process.env.FRONTEND_URL}${user?.role === 'seller' ? '/seller/' : '/'}login?cookieSet=true`);
+            }
+        })(req, res, next);
+    }
 
 module.exports = {
     register,
@@ -367,4 +536,10 @@ module.exports = {
     forgotPassword,
     resetPassword,
     changePassword,
+    checkAuthCookies,
+    checkErrorCookies,
+    googleAuth,
+    facebookAuth,
+    googleCallback,
+    facebookCallback
 }
