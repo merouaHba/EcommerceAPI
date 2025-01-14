@@ -12,7 +12,6 @@ passport.use(new GoogleStrategy({
     accessType: 'offline',
     prompt: 'consent',
     passReqToCallback: true,
-    state:true,
 }, async (req, accessToken, refreshToken, profile, done) => {
     try {
         const {
@@ -26,9 +25,11 @@ passport.use(new GoogleStrategy({
         let redirect = 'login';
         try {
             if (req.query.state) {
+                console.log(req.query.state)
                 const stateData = JSON.parse(Buffer.from(req.query.state, 'base64').toString());
-                role = stateData.role?stateData.role:role;
-                redirect = stateData.redirect?stateData.redirect:redirect;
+                console.log(stateData)
+                role = stateData.role??role;
+                redirect = stateData.redirect??redirect;
             }
         } catch (error) {
             console.error('Error parsing state:', error);
@@ -128,7 +129,6 @@ passport.use(new FacebookStrategy({
     profileFields: ['id', 'email','displayName', 'name', 'picture'],
     enableProof: true,
     passReqToCallback: true,
-    state: true,
 }, async (req, accessToken, refreshToken, profile, done) => {
    
     try {
