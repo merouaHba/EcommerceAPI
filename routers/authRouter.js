@@ -58,6 +58,8 @@ router.get('/google/callback', (req, res, next) => {
             secure: process.env.NODE_ENV === 'production',
             signed: true,
             sameSite: "none",
+            expires: new Date(new Date(Date.now()  + (1000 * 60 * 60*2))),
+
         };
         console.log(user,err,info)
 
@@ -129,6 +131,8 @@ router.get('/facebook/callback', (req, res, next) => {
             secure: process.env.NODE_ENV === 'production',
             signed: true,
             sameSite: "none",
+            expires: new Date(new Date(Date.now() + (1000 * 60 * 60 * 2))),
+
         };
 
         if (err || !user) {
