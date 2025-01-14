@@ -149,9 +149,11 @@ passport.use(new FacebookStrategy({
         let redirect = 'login';
         try {
             if (req.query.state) {
+                console.log(req.query.state)
                 const stateData = JSON.parse(Buffer.from(req.query.state, 'base64').toString());
-                role = stateData.role ? stateData.role : role;
-                redirect = stateData.redirect ? stateData.redirect : redirect;
+                console.log(stateData)
+                role = stateData.role ?? role;
+                redirect = stateData.redirect ?? redirect;
             }
         } catch (error) {
             console.error('Error parsing state:', error);
