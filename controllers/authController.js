@@ -421,7 +421,7 @@ const googleCallback=async(req, res, next) => {
                 res.cookie('error', errorMessage, cookieOptions);
 
                 const targetRole = info?.role ?? 'user';
-                return res.redirect(`${process.env.FRONTEND_URL}${targetRole === 'seller' ? '/seller/' : '/'}${info.redirect}?cookieSet=true`);
+                return res.redirect(`${process.env.FRONTEND_URL}${targetRole === 'seller' ? '/seller/' : '/'}${info?.redirect??"login"}?cookieSet=true`);
             }
 
             try {
@@ -456,7 +456,7 @@ const googleCallback=async(req, res, next) => {
 
                 res.cookie('error', "Authentication process failed", cookieOptions);
 
-                return res.redirect(`${process.env.FRONTEND_URL}${user?.role === 'seller' ? '/seller/' : '/'}${info.redirect}?cookieSet=true`);
+                return res.redirect(`${process.env.FRONTEND_URL}${user?.role === 'seller' ? '/seller/' : '/'}${info?.redirect??"login"}?cookieSet=true`);
             }
         })(req, res, next);
     }
@@ -500,7 +500,7 @@ const facebookCallback =
                 res.cookie('error', errorMessage, cookieOptions);
 
                 const targetRole = info?.role ?? 'user';
-                return res.redirect(`${process.env.FRONTEND_URL}${targetRole === 'seller' ? '/seller/' : '/'}${info.redirect}?cookieSet=true`);
+                return res.redirect(`${process.env.FRONTEND_URL}${targetRole === 'seller' ? '/seller/' : '/'}${info?.redirect??"login"}?cookieSet=true`);
             }
 
             try {
@@ -535,7 +535,7 @@ const facebookCallback =
 
                 res.cookie('error', "Authentication process failed", cookieOptions);
 
-                return res.redirect(`${process.env.FRONTEND_URL}${user?.role === 'seller' ? '/seller/' : '/'}${info.redirect}?cookieSet=true`);
+                return res.redirect(`${process.env.FRONTEND_URL}${user?.role === 'seller' ? '/seller/' : '/'}${info?.redirect??"login"}?cookieSet=true`);
             }
         })(req, res, next);
     }
