@@ -66,7 +66,7 @@ const getSingleUser = async (req, res) => {
     // generate token
     const tokenUser = createTokenUser(user);
     const refreshToken = attachCookiesToResponse({ res, rememberMe:false, user: tokenUser });
-    user.refreshToken = [...user.refreshToken,refreshToken];
+    user.refreshToken = user.refreshToken?.push(refreshToken) || [refreshToken];
     await user.save();
     const accessToken = createJWT({ payload: tokenUser, expireDate: '15m', jwtSecret: process.env.ACCESS_TOKEN_SECRET })
     res.status(StatusCodes.OK).json({ user: tokenUser, accessToken });
