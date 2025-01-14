@@ -1,6 +1,6 @@
 const User = require('../models/userModel')
 const { StatusCodes } = require('http-status-codes')
-const { BadRequestError, UnauthenticatedError, NotFoundError, UnauthorizedError, ForbiddenError } = require('../errors')
+const { BadRequestError, UnauthenticatedError, NotFoundError, UnauthorizedError, ForbiddenError, CustomAPIError } = require('../errors')
 const { attachCookiesToResponse, createTokenUser, createJWT, sendVerificationEmail, sendResetPasswordEmail, isTokenValid } = require('../utils');
 const passport = require('passport');
 

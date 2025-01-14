@@ -14,7 +14,6 @@ const { register,
     facebookAuth,
     facebookCallback} = require('../controllers/authController')
 const { authenticateUser } = require('../middlewares/authentication');
-const { CustomAPIError } = require('../errors');
 
 router.post('/register', register)
 router.post('/login', login)
