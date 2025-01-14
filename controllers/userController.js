@@ -63,10 +63,10 @@ const getSingleUser = async (req, res) => {
     if (!user) {
         throw new CustomError.NotFoundError(`No user with id : ${id}`);
     }
-   const userObject = user.toObject()
-    userObject.name = `${user.firstname} ${user.lastname}`
-    userObject.profilePicture = user.profilePicture?.url
-    res.status(StatusCodes.OK).json({ user: userObject });
+    // generate token
+    const tokenUser = createTokenUser(user);
+    const accessToken = createJWT({ payload: tokenUser, expireDate: '15m', jwtSecret: process.env.ACCESS_TOKEN_SECRET })
+    res.status(StatusCodes.OK).json({ user: tokenUser, accessToken });
 };
 
 const updateUser = async (req, res) => {
