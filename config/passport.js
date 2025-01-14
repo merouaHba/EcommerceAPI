@@ -11,7 +11,8 @@ passport.use(new GoogleStrategy({
     callbackURL: `${baseURL}/auth/google/callback`,
     accessType: 'offline',
     prompt: 'consent',
-    passReqToCallback: true
+    passReqToCallback: true,
+    state,
 }, async (req, accessToken, refreshToken, profile, done) => {
     try {
         const {
@@ -126,7 +127,8 @@ passport.use(new FacebookStrategy({
     callbackURL: `${baseURL}/auth/facebook/callback`,
     profileFields: ['id', 'email','displayName', 'name', 'picture'],
     enableProof: true,
-    passReqToCallback: true
+    passReqToCallback: true,
+    state,
 }, async (req, accessToken, refreshToken, profile, done) => {
    
     try {
