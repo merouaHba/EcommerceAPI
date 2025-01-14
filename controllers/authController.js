@@ -144,7 +144,6 @@ try{
 };
 
 const login = async (req, res) => {
-    console.log(req)
     const { email, password,role,rememberMe} = req.body
     if (!email || !password) {
         throw new BadRequestError('Please provide userName and password')
@@ -412,7 +411,6 @@ const googleCallback=async(req, res, next) => {
                 expires: new Date(new Date(Date.now() + (1000 * 60 * 60 * 2))),
 
             };
-            console.log(user, err, info)
 
             if (err || !user) {
                 const errorMessage = err instanceof CustomAPIError ? err.message :
@@ -483,7 +481,7 @@ const facebookAuth =(req, res) => {
 const facebookCallback =
     (req, res, next) => {
 
-        passport.authenticate('google', { session: false }, async (err, user, info) => {
+        passport.authenticate('facebook', { session: false }, async (err, user, info) => {
             const cookieOptions = {
                 path: '/',
                 secure: process.env.NODE_ENV === 'production',

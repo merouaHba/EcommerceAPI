@@ -25,9 +25,7 @@ passport.use(new GoogleStrategy({
         let redirect = 'login';
         try {
             if (req.query.state) {
-                console.log(req.query.state)
                 const stateData = JSON.parse(Buffer.from(req.query.state, 'base64').toString());
-                console.log(stateData)
                 role = stateData.role??role;
                 redirect = stateData.redirect??redirect;
             }
@@ -149,9 +147,7 @@ passport.use(new FacebookStrategy({
         let redirect = 'login';
         try {
             if (req.query.state) {
-                console.log(req.query.state)
                 const stateData = JSON.parse(Buffer.from(req.query.state, 'base64').toString());
-                console.log(stateData)
                 role = stateData.role ?? role;
                 redirect = stateData.redirect ?? redirect;
             }
