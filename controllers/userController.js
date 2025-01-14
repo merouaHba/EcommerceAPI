@@ -10,6 +10,7 @@ const {
 const { uploadFile, destroyFile } = require('../utils/cloudinary')
 const CustomError = require('../errors');
 const validateMongoDbId = require('../utils/validateMongodbId');
+const { default: mongoose } = require('mongoose');
 
 
 
@@ -82,7 +83,8 @@ const updateUser = async (req, res) => {
     const updatedData = {};
     if (mobile) {
         const user = await User.findOne({ mobile: mobile });
-        if (user) {
+
+        if (user && !(new mongoose.Types.ObjectId(id)).equals(user._id) ) {
             throw new CustomError.BadRequestError("mobile number already exist")
         }
         updatedData.mobile = mobile
