@@ -420,7 +420,7 @@ const googleCallback=async(req, res, next) => {
 
                 res.cookie('error', errorMessage, cookieOptions);
 
-                const targetRole = user?.role || 'user';
+                const targetRole = info?.role ?? 'user';
                 return res.redirect(`${process.env.FRONTEND_URL}${targetRole === 'seller' ? '/seller/' : '/'}${info.redirect}?cookieSet=true`);
             }
 
@@ -499,7 +499,7 @@ const facebookCallback =
 
                 res.cookie('error', errorMessage, cookieOptions);
 
-                const targetRole = user?.role || 'user';
+                const targetRole = info?.role ?? 'user';
                 return res.redirect(`${process.env.FRONTEND_URL}${targetRole === 'seller' ? '/seller/' : '/'}${info.redirect}?cookieSet=true`);
             }
 

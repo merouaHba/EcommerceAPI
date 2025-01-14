@@ -50,14 +50,16 @@ passport.use(new GoogleStrategy({
             if (user.role !== role) {
                 return done(null, false, {
                     message: `Authentification failed.`,
-                    redirect: redirect
+                    redirect,
+                    role
                 });
             }
 
             if (user.isBlocked) {
                 return done(null, false, {
                     message: "This account has been blocked.",
-                    redirect: redirect
+                    redirect,
+                    role
                 });
             }
 
@@ -79,7 +81,8 @@ passport.use(new GoogleStrategy({
             if (role === "seller") {
                 return done(null, false, {
                     message: "Seller accounts cannot use Google authentication for registration",
-                    redirect: redirect
+                    redirect,
+                    role
                 });
             }
             try {
@@ -99,7 +102,8 @@ passport.use(new GoogleStrategy({
                 console.error('Error creating user:', createError);
                 return done(null, false, {
                     message: "Failed to create new user account",
-                    redirect:redirect
+                    redirect,
+                    role
                 });
             }
         }
@@ -107,7 +111,8 @@ passport.use(new GoogleStrategy({
         if (!user) {
             return done(null, false, {
                 message: "Failed to process user account",
-                redirect: redirect
+                redirect,
+                role
             });
         }
 
@@ -117,7 +122,8 @@ passport.use(new GoogleStrategy({
         console.error('Authentication error:', error);
         return done(null, false, {
             message: error.message || "Authentication failed. Please try again.",
-            redirect: redirect
+            redirect,
+            role
         });
     }
 }));
@@ -166,14 +172,16 @@ passport.use(new FacebookStrategy({
             if (user.role !== role) {
                 return done(null, false, {
                     message: `Authentification failed.`,
-                    redirect
+                    redirect,
+                    role
                 });
             }
 
             if (user.isBlocked) {
                 return done(null, false, {
                     message: "This account has been blocked.",
-                    redirect
+                    redirect,
+                    role
                 });
             }
 
@@ -195,7 +203,8 @@ passport.use(new FacebookStrategy({
             if (role === "seller") {
                 return done(null, false, {
                     message: "Seller accounts cannot use Facebook authentication for registration",
-                    redirect
+                    redirect,
+                    role
                 });
             }
             try {
@@ -215,7 +224,8 @@ passport.use(new FacebookStrategy({
                 console.error('Error creating user:', createError);
                 return done(null, false, {
                     message: "Failed to create new user account",
-                    redirect
+                    redirect,
+                    role
                 });
             }
         }
@@ -223,7 +233,8 @@ passport.use(new FacebookStrategy({
         if (!user) {
             return done(null, false, {
                 message: "Failed to process user account",
-                redirect
+                redirect,
+                role
             });
         }
 
@@ -233,7 +244,8 @@ passport.use(new FacebookStrategy({
         console.error('Authentication error:', error);
         return done(null, false, {
             message: error.message || "Authentication failed. Please try again.",
-            redirect
+            redirect,
+            role
         });
     }
 }));
