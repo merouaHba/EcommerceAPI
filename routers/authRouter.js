@@ -25,8 +25,8 @@ router.post('/forgot-password', forgotPassword);
 router.put('/change-password',authenticateUser ,changePassword);
 
 
-router.put('/set-cookie', (req, res) => {
-    res.send()
+router.get('/set-cookie', (req, res) => {
+    res.status(200).send()
 });
 
 
@@ -108,10 +108,7 @@ return res.redirect(`${process.env.FRONTEND_URL}${user?.role === 'seller' ? '/se
     })(req, res, next);
 });
 router.get('/facebook', (req, res) => {
-    // passport config
-    require('../config/passport');
-    // passport config
-    require('../config/passport');
+  
     const state = req.query.role ? Buffer.from(JSON.stringify({ role: req.query.role })).toString('base64') : undefined;
 
     passport.authenticate('facebook', {
