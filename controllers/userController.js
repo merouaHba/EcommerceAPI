@@ -76,7 +76,7 @@ const updateUser = async (req, res) => {
     const id = role === "admin" ? userId : _id;
     validateMongoDbId(id)
     const {firstname,lastname, mobile,address,storeName,storeDetails} = req.body;
-    if (!firstname || !lastname|| !mobile || !address || (role === "seller" &&(!storeName || !storeDetails))) {
+    if (!!firstname && !!lastname && !!mobile && !!address && (role === "seller" && (!!storeName && !!storeDetails))) {
         throw new CustomError.BadRequestError("no updated data")
     }
     const updatedData = {};
