@@ -10,7 +10,7 @@ const createJWT = ({ payload,expireDate,jwtSecret }) => {
 const isTokenValid = ({ token, jwtSecret }) => jwt.verify(token,jwtSecret);
 
 const attachCookiesToResponse = ({ res, rememberMe, user }) => {
-  const token = createJWT({ payload: user, expireDate: rememberMe?'30d':'24h', jwtSecret: process.env.REFRESH_TOKEN_SECRET });
+  const token = createJWT({ payload: user, expireDate: rememberMe?'30d':'25h', jwtSecret: process.env.REFRESH_TOKEN_SECRET });
 
   res.cookie('token', token, {
     httpOnly: true,

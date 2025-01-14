@@ -20,13 +20,11 @@ const createUser = async (req, res) => {
 
     const findUserByEmail = await User.findOne({ email: email });
 
-    console.log(!findUserByEmail)
 
     if (!findUserByEmail && !findUserByMobile) {
 
 
         const verificationToken = "";
-        console.log(req.body)
         const user = await User.create({ ...req.body, verificationToken, isVerified: true })
         res.status(StatusCodes.CREATED).json({
             msg: 'Success! Account Created',
@@ -40,7 +38,6 @@ const createUser = async (req, res) => {
 
 
 const getAllUsers = async (req, res) => {
-    console.log(req.user);
     // const users = await User.find({ $or:[{role: 'user'},{role:'seller'}] }).select('-password');
     // res.status(StatusCodes.OK).json({ users });
     const result = await apiFeatures(req, User);
@@ -114,14 +111,13 @@ const updateUser = async (req, res) => {
         new: true,
         runValidators: true,
     })
-    console.log(user)
 
     if (!user) {
         throw new CustomError.NotFoundError(`No user with this id: ${id}`)
     }
 
     const tokenUser = createTokenUser(user);
-    const accessToken = createJWT({ payload: tokenUser, expireDate: '15m', jwtSecret: process.env.ACCESS_TOKEN_SECRET })
+    const accessToken = createJWT({ payload: tokenUser, expireDate: '75m', jwtSecret: process.env.ACCESS_TOKEN_SECRET })
     res.status(StatusCodes.OK).json({ user: tokenUser, accessToken });
 };
 

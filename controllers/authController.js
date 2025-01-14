@@ -34,7 +34,7 @@ if(!firstname || !lastname || !email || !password) {
         const role = isFirstAccount ? 'admin' : (req.body.role ? req.body.role : 'user');
         const tokenUser = createTokenUser({ ...req.body, role });
         
-        const verificationToken = createJWT({ payload: tokenUser, expireDate: '1d', jwtSecret: process.env.JWT_SECRET });
+        const verificationToken = createJWT({ payload: tokenUser, expireDate: '25h', jwtSecret: process.env.JWT_SECRET });
         const vericationTokenExpirationDate = Date.now() + 24 * 60 * 60 * 1000 // 10 min expiration
         let user
 
@@ -82,7 +82,7 @@ const resendVerificationEmail = async (req, res) => {
 
     const tokenUser = createTokenUser({ email });
 
-    const verificationToken = createJWT({ payload: tokenUser, expireDate: '1d', jwtSecret: process.env.JWT_SECRET });
+    const verificationToken = createJWT({ payload: tokenUser, expireDate: '25h', jwtSecret: process.env.JWT_SECRET });
     const vericationTokenExpirationDate = Date.now() + 24 * 60 * 60 * 1000 
 
     user.verificationToken = verificationToken;
@@ -181,7 +181,7 @@ const login = async (req, res) => {
     const refreshToken = attachCookiesToResponse({ res, rememberMe, user: tokenUser });
     user.refreshToken.push(refreshToken);
     await user.save();
-    const accessToken = createJWT({ payload: tokenUser, expireDate: '15m', jwtSecret: process.env.ACCESS_TOKEN_SECRET })
+    const accessToken = createJWT({ payload: tokenUser, expireDate: '75m', jwtSecret: process.env.ACCESS_TOKEN_SECRET })
     res.status(StatusCodes.OK).json({ user: tokenUser, accessToken });
 }
 const refreshToken = async (req, res) => {
@@ -217,7 +217,7 @@ const refreshToken = async (req, res) => {
   
         // generate token
         const tokenUser = createTokenUser(user);
-        const accessToken = createJWT({ payload: tokenUser, expireDate: '15m', jwtSecret: process.env.ACCESS_TOKEN_SECRET })
+        const accessToken = createJWT({ payload: tokenUser, expireDate: '75m', jwtSecret: process.env.ACCESS_TOKEN_SECRET })
 
         res.status(StatusCodes.OK).json({ user: tokenUser, accessToken });
 
@@ -268,7 +268,7 @@ const forgotPassword = async (req, res) => {
     }
     const tokenUser = createTokenUser({ ...req.body });
 
-    const verificationToken = createJWT({ payload: tokenUser, expireDate: '30m', jwtSecret: process.env.JWT_SECRET });
+    const verificationToken = createJWT({ payload: tokenUser, expireDate: '90m', jwtSecret: process.env.JWT_SECRET });
 
 
 
@@ -351,7 +351,7 @@ const changePassword = async (req, res) => {
     const refreshToken = attachCookiesToResponse({ res,rememberMe:false, user: tokenUser });
      user.refreshToken.push(refreshToken);
     await user.save();
-    const accessToken = createJWT({ payload: tokenUser, expireDate: '15m', jwtSecret: process.env.ACCESS_TOKEN_SECRET })
+    const accessToken = createJWT({ payload: tokenUser, expireDate: '75m', jwtSecret: process.env.ACCESS_TOKEN_SECRET })
     res.status(StatusCodes.OK).json({ user: tokenUser, accessToken });
 
 }
@@ -365,7 +365,7 @@ const checkAuthCookies=async(req,res) => {
     const refreshToken = attachCookiesToResponse({ res, rememberMe: false, user: tokenUser });
     user.refreshToken = user.refreshToken?.push(refreshToken) || [refreshToken];
     await user.save();
-    const accessToken = createJWT({ payload: tokenUser, expireDate: '15m', jwtSecret: process.env.ACCESS_TOKEN_SECRET })
+    const accessToken = createJWT({ payload: tokenUser, expireDate: '75m', jwtSecret: process.env.ACCESS_TOKEN_SECRET })
     res.status(StatusCodes.OK).json({ user: tokenUser, accessToken });
 
 }
@@ -436,7 +436,7 @@ const googleCallback=async(req, res, next) => {
 
                 const accessToken = createJWT({
                     payload: tokenUser,
-                    expireDate: '15m',
+                    expireDate: '75m',
                     jwtSecret: process.env.ACCESS_TOKEN_SECRET
                 });
 
@@ -514,7 +514,7 @@ const facebookCallback =(req, res, next) => {
 
                 const accessToken = createJWT({
                     payload: tokenUser,
-                    expireDate: '15m',
+                    expireDate: '75m',
                     jwtSecret: process.env.ACCESS_TOKEN_SECRET
                 });
 
