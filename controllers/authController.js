@@ -360,7 +360,7 @@ const checkAuthCookies=async(req,res) => {
     const user = await User.findOne({ _id: req.user._id }).select('firstname lastname profilePicture email mobile role address');
 
     if (!user) {
-        throw new CustomError.NotFoundError(`No user with id : ${id}`);
+        throw new NotFoundError(`No user with id : ${id}`);
     }
     const tokenUser = createTokenUser(user);
     const refreshToken = attachCookiesToResponse({ res, rememberMe: false, user: tokenUser });
