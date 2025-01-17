@@ -38,7 +38,7 @@ const UserSchema = new mongoose.Schema({
         validate: {
             validator: function (v) {
                 if (this.role !== 'seller' && !v) return true;
-                return validator.isMobilePhone(v, 'any');
+                return validator.isMobilePhone(v, 'any',{strictMode: true});
             },
             message: 'Please provide a valid mobile number',
         },
@@ -86,7 +86,13 @@ const UserSchema = new mongoose.Schema({
         type: String,
     },
     storeDetails: {
-        address: {
+        street: {
+            type: String,
+            required: [function () {
+                return this.role === 'seller';
+            }, 'Please provide a street address'],
+        },
+        state: {
             type: String,
             required: [function () {
                 return this.role === 'seller';
@@ -94,15 +100,6 @@ const UserSchema = new mongoose.Schema({
         },
         city: {
             type: String,
-            required: [function () {
-                return this.role === 'seller';
-            }, 'Please provide a address'],
-        },
-        state: {
-            type: String,
-            required: [function () {
-                return this.role === 'seller';
-            }, 'Please provide a address'],
         },
         postalCode: {
             type: Number,
