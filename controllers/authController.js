@@ -523,16 +523,38 @@ const facebookCallback =(req, res, next) => {
                 res.cookie('user', JSON.stringify(tokenUser), cookieOptions);
                 console.log(res.getHeaders())
 
-                setTimeout(() => {
 
-                    return res.redirect(`${process.env.FRONTEND_URL}${user.role === 'seller' ? '/seller/dashboard?cookieSet=true' : '/?cookieSet=true'}`);
-                }, 1000)
+                return res.status(StatusCodes.OK).send(`
+                    <html>
+                    <head>
+                    <meta http-equiv="refresh" content="0; url=${process.env.FRONTEND_URL}${user.role === 'seller' ? '/seller/dashboard?cookieSet=true' : '/?cookieSet=true'}">
+                    </head>
+                    <body>
+                    Redirecting ...
+                    </body>
+                    </html>
+                    `);
+                // setTimeout(() => {
+
+                //     return res.redirect(`${process.env.FRONTEND_URL}${user.role === 'seller' ? '/seller/dashboard?cookieSet=true' : '/?cookieSet=true'}`);
+                // }, 1000)
             } catch (error) {
                 console.error('Auth completion error:', error);
 
                 res.cookie('error', "Authentication process failed", cookieOptions);
 
-                return res.redirect(`${process.env.FRONTEND_URL}${user?.role === 'seller' ? '/seller/' : '/'}${info?.redirect??"login"}?cookieSet=true`);
+
+                return res.status(StatusCodes.OK).send(`
+                    <html>
+                    <head>
+                    <meta http-equiv="refresh" content="0; url=${process.env.FRONTEND_URL}${user?.role === 'seller' ? '/seller/' : '/'}${info?.redirect??"login"}?cookieSet=true">
+                    </head>
+                    <body>
+                    Redirecting ...
+                    </body>
+                    </html>
+                    `);
+                // return res.redirect(`${process.env.FRONTEND_URL}${user?.role === 'seller' ? '/seller/' : '/'}${info?.redirect??"login"}?cookieSet=true`);
             }
         })(req, res, next);
     }
