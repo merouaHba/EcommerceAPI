@@ -1,4 +1,4 @@
-const apiFeatures = require('./apiFeatures');
+const {apiFeatures,} = require('./apiFeatures');
 const { createJWT, isTokenValid, attachCookiesToResponse } = require('./jwt');
 const createTokenUser = require('./createTokenUser');
 const sendVerificationEmail = require('./sendVerficationEmail');

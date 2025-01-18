@@ -4,8 +4,7 @@ const User = require('../models/userModel')
 
 const authenticateUser = async (req, res, next) => {
     let accessToken;
-    const refreshToken = req.signedCookies?.token ;
-    console.log("req.signedCookies?.token ??", req)
+    const refreshToken = req.signedCookies?.token;
     // check header
     const authHeader = req.headers.authorization ?? `Bearer ${req.signedCookies?.accessToken}`;
     if (authHeader && authHeader.startsWith('Bearer')) {

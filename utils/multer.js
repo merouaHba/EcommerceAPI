@@ -58,7 +58,6 @@ console.log(err.code)
  */
 const anyMulter = () => (req, res, next) => {
 
-  console.log('hi')
   const upload =uploadImage.any();
   upload(req, res, (err) => {
     if (err) return res.status(500).json({ msg: err })
