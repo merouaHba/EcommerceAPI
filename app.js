@@ -33,17 +33,17 @@ app.use(errorHandle);
 
 
 // routers
-const authRouter = require('./routers/authRouter');
-const userRouter = require('./routers/userRouter');
-const productRouter = require('./routers/productRouter');
-const categoryRouter = require('./routers/categoryRouter');
-const cartRouter = require('./routers/cartRouter');
-const favouriteRouter = require('./routers/favouriteRouter');
-const reviewRouter = require('./routers/reviewRouter');
-const discountRouter = require('./routers/discountRouter');
-const orderRouter = require('./routers/orderRouter');
-const paymentRouter = require('./routers/paymentRouter');
-const newsLettersubscriptionRouter = require('./routers/subscribeRouter');
+const authRouter = require('./routes/authRoute');
+const userRouter = require('./routes/userRoute');
+const productRouter = require('./routes/productRoute');
+const categoryRouter = require('./routes/categoryRoute');
+const cartRouter = require('./routes/cartRoute');
+const favouriteRouter = require('./routes/favouriteRoute');
+const reviewRouter = require('./routes/reviewRoute');
+const discountRouter = require('./routes/discountRoute');
+const orderRouter = require('./routes/orderRoute');
+const paymentRouter = require('./routes/paymentRoute');
+const newsLettersubscriptionRouter = require('./routes/subscribeRoute');
 
 // error handler
 const notFoundMiddleware = require('./middlewares/not-found');
