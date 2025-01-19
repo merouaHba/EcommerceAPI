@@ -446,7 +446,7 @@ const googleCallback=async(req, res, next) => {
                 console.log(res.getHeaders())
                 setTimeout(() => {
 
-                    return res.redirect(`${process.env.FRONTEND_URL}${user.role === 'seller' ? '/seller/dashboard?cookieSet=true' : '/?cookieSet=true'}`);
+                    return res.status(307).redirect(`${process.env.FRONTEND_URL}${user.role === 'seller' ? '/seller/dashboard?cookieSet=true' : '/?cookieSet=true'}`);
                 }, 1000)
 
             } catch (error) {
