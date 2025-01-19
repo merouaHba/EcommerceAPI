@@ -409,6 +409,7 @@ const googleCallback=async(req, res, next) => {
                 signed: true,
                 sameSite: "none",
                 expires: new Date(new Date(Date.now() + (1000 * 60 * 60 * 2))),
+                partitioned: false,
 
             };
 
@@ -443,6 +444,9 @@ const googleCallback=async(req, res, next) => {
                 res.cookie('accessToken', accessToken, cookieOptions);
 
                 res.cookie('user', JSON.stringify(tokenUser), cookieOptions);
+                res.set('Cache-Control', 'no-cache,no-store,must-revalidate')
+                res.set('Pragma', 'no-cache')
+                res.set('Expires',0)
                 console.log(res.getHeaders())
                 setTimeout(() => {
 
