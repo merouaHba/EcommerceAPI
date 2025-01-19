@@ -405,6 +405,7 @@ const googleCallback=async(req, res, next) => {
         passport.authenticate('google', { session: false }, async (err, user, info) => {
             const cookieOptions = {
                 path: '/',
+                domain: process.env.DOMAIN,
                 secure: process.env.NODE_ENV === 'production',
                 signed: true,
                 sameSite: "none",
@@ -483,6 +484,7 @@ const facebookCallback =(req, res, next) => {
         passport.authenticate('facebook', { session: false }, async (err, user, info) => {
             const cookieOptions = {
                 path: '/',
+                domain: process.env.DOMAIN,
                 secure: process.env.NODE_ENV === 'production',
                 signed: true,
                 sameSite: "none",
