@@ -445,14 +445,9 @@ const googleCallback=async(req, res, next) => {
                 res.cookie('accessToken', accessToken, cookieOptions);
 
                 res.cookie('user', JSON.stringify(tokenUser), cookieOptions);
-                res.set('Cache-Control', 'no-cache,no-store,must-revalidate')
-                res.set('Pragma', 'no-cache')
-                res.set('Expires',0)
                 console.log(res.getHeaders())
-                setTimeout(() => {
 
                     return res.redirect(302,`${process.env.FRONTEND_URL}${user.role === 'seller' ? '/seller/dashboard?cookieSet=true' : '/?cookieSet=true'}`);
-                }, 1000)
 
             } catch (error) {
                 console.error('Auth completion error:', error);
@@ -529,10 +524,7 @@ const facebookCallback =(req, res, next) => {
                 res.cookie('user', JSON.stringify(tokenUser), cookieOptions);
                 console.log(res.getHeaders())
 
-                setTimeout(() => {
-
                     return res.redirect(`${process.env.FRONTEND_URL}${user.role === 'seller' ? '/seller/dashboard?cookieSet=true' : '/?cookieSet=true'}`);
-                }, 1000)
             } catch (error) {
                 console.error('Auth completion error:', error);
 
