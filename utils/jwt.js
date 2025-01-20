@@ -19,7 +19,7 @@ const attachCookiesToResponse = ({ res, rememberMe, user }) => {
     signed: true,
     sameSite: process.env.NODE_ENV === 'production'?'none':"strict",
     expires: new Date(new Date(Date.now() + (rememberMe ? (1000 * 60 * 60 * 24 * 30) : (1000 * 60 * 60 * 24)) + (1000 * 60 * 60 ))),
-
+    domain: process.env.DOMAIN,
   });
   return token;
 };

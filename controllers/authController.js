@@ -406,6 +406,7 @@ const googleCallback=async(req, res, next) => {
             const cookieOptions = {
                 path: '/',
                 secure: process.env.NODE_ENV === 'production',
+                domain: process.env.DOMAIN,
                 signed: true,
                 sameSite: "none",
                 expires: new Date(new Date(Date.now() + (1000 * 60 * 60 * 2))),
@@ -488,6 +489,7 @@ const facebookCallback =(req, res, next) => {
             const cookieOptions = {
                 path: '/',
                 secure: process.env.NODE_ENV === 'production',
+                domain: process.env.DOMAIN,
                 signed: true,
                 sameSite: "none",
                 expires: new Date(new Date(Date.now() + (1000 * 60 * 60 * 2))),
