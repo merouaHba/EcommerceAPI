@@ -378,10 +378,49 @@ const categoryFeatures = {
 const categoryAPIFeatures = createAPIFeatures(categoryFeatures);
 
 
+const productFeatures = {
+    searchable: ['name', 'description', 'brand', 'category'],
+    sortable: [
+        'name',
+        'basePrice',
+        'createdAt',
+        'updatedAt',
+        'ratingsAverage',
+        'sold'
+    ],
+    selectable: ['*'],
+    excluded: ['__v'],
+    required: ['_id', 'name', 'basePrice'],
+    useTextIndex: true,
+    fuzzySearch: true,
+    filters: {
+        name: ['eq', 'ne', 'regex'],
+        basePrice: ['gt', 'gte', 'lt', 'lte'],
+        ratingsAverage: ['gt', 'gte', 'lt', 'lte'],
+        stockStatus: ['eq', 'in'],
+        category: ['eq', 'in'],
+        brand: ['eq', 'in'],
+        createdAt: ['gt', 'gte', 'lt', 'lte'],
+    },
+    population: {
+        default: [
+            { path: 'category', select: 'name' },
+            { path: 'seller', select: 'name email' }
+        ]
+    },
+    pagination: {
+        defaultLimit: 24,
+        maxLimit: 100
+    }
+};
+
+const productAPIFeatures = createAPIFeatures(productFeatures);
+
 
 module.exports = {
     APIFeatures,
     createAPIFeatures,
     // Export the configured instance
-    categoryAPIFeatures
+    categoryAPIFeatures,
+    productAPIFeatures
 };
