@@ -204,7 +204,7 @@ const refreshToken = async (req, res) => {
                 secure: process.env.NODE_ENV === 'production',
                 sameSite: 'strict',
             });
-            throw new UnauthenticatedError('Invalid Refresh token');
+            throw new UnauthenticatedError('Authentication Invalid or Session Expired.');
         }
     } catch (error) {
         res.clearCookie('token', {
@@ -212,7 +212,7 @@ const refreshToken = async (req, res) => {
             secure: process.env.NODE_ENV === 'production',
             sameSite: 'strict',
         });
-        throw new UnauthenticatedError('Invalid Refresh token');
+        throw new UnauthenticatedError('Authentication Invalid or Session Expired.');
     }
   
         // generate token
