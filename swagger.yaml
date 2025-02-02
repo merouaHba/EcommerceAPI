@@ -16,154 +16,302 @@ paths:
     post:
       tags:
         - Auth
-      summary: Register User
-      operationId: RegisterUser
-      parameters: []
+      summary: Register a new user or seller
+      description: |
+        Creates a new user or seller account with the provided information.
+        - First registered user becomes admin
+        - Sends verification email
+        - Requires terms acceptance
+        - Different validation rules apply for user and seller accounts
       requestBody:
-        description: ''
+        required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/RegisterUserRequest'
-            example:
-              name: bob
-              email: bob@gmail.com
-              password: secret
-        required: true
+              oneOf:
+                - $ref: '#/components/schemas/UserRegistration'
+                - $ref: '#/components/schemas/SellerRegistration'
       responses:
-        '200':
-          description: ''
-          headers: {}
-      deprecated: false
-      security: []
+        '201':
+          description: Registration successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  msg:
+                    type: string
+                    example: "Success! Please check your email to verify account"
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  msg:
+                    type: string
+                    example: "Please provide all values"
+  
   /auth/login:
     post:
       tags:
         - Auth
-      summary: Login User
-      operationId: LoginUser
-      parameters: []
+      summary: Log in user
+      description: |
+        Authenticates user and returns tokens
+        - Requires verified email
+        - Account must not be blocked
+        - Role must match login portal
       requestBody:
-        description: ''
+        required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/LoginUserRequest'
-            example:
-              email: susan@gmail.com
-              password: secret
-        required: true
+              type: object
+              required:
+                - email
+                - password
+                - role
+              properties:
+                email:
+                  type: string
+                  format: email
+                role:
+                  type: string
+                  enum: [user, seller]
+                password:
+                  type: string
+                rememberMe:
+                  type: boolean
+                  default: false
       responses:
         '200':
-          description: ''
-          headers: {}
-      deprecated: false
-      security: []
-  /auth/logout:
-    delete:
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    type: object
+                    properties:
+                      firstname:
+                        type: string
+                      lastname:
+                        type: string
+                      email:
+                        type: string
+                      role:
+                        type: string
+                  accessToken:
+                    type: string
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+                description: HTTP-only refresh token cookie
+        '400':
+          description: Invalid credentials
+        '401':
+          description: Account not verified
+        '403':
+          description: Account blocked or wrong role
+
+  /auth/refresh-token:
+    get:
       tags:
         - Auth
-      summary: Logout User
-      operationId: LogoutUser
-      parameters: []
+      summary: Refresh access token
+      description: Uses refresh token cookie to issue new access token
       responses:
         '200':
-          description: ''
-          headers: {}
-      deprecated: false
-      security: []
-  /auth/forgot_password:
+          description: New tokens issued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accessToken:
+                    type: string
+                  user:
+                    type: object
+        '401':
+          description: Invalid or expired refresh token
+
+  /auth/verify-email/{token}:
+    get:
+      tags:
+        - Auth
+      summary: Verify email address
+      parameters:
+        - in: path
+          name: token
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Email verified successfully
+        '400':
+          description: Invalid or expired token
+
+  /auth/resend-verification-email:
     post:
       tags:
         - Auth
-      summary: Forgot Password
-      operationId: ForgotPassword
-      parameters: []
+      summary: Resend verification email
       requestBody:
-        description: ''
+        required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/LoginUserRequest'
-            example:
-              email: susan@gmail.com
-              password: secret
-        required: true
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
       responses:
-        '200':
-          description: ''
-          headers: {}
-      deprecated: false
-      security: []
-  /auth/verify-email:
+        '201':
+          description: Verification email sent
+        '400':
+          description: Account already verified
+        '404':
+          description: User not found
+
+  /auth/forgot-password:
     post:
       tags:
         - Auth
-      summary: Verify User Email
-      operationId: VerifyUserEmail
-      parameters: []
+      summary: Request password reset
+      description: |
+        Sends password reset email to verified accounts
+        Reset token expires in 30 minutes
       requestBody:
-        description: ''
+        required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/LoginUserRequest'
-            example:
-              email: susan@gmail.com
-              password: secret
-        required: true
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
       responses:
         '200':
-          description: ''
-          headers: {}
-      deprecated: false
-      security: []
+          description: Reset email sent if account exists
+
   /auth/reset-password:
     post:
       tags:
         - Auth
-      summary: Reset Password
-      operationId: ResetPassword
-      parameters: []
+      summary: Reset password using token
       requestBody:
-        description: ''
+        required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/LoginUserRequest'
-            example:
-              email: susan@gmail.com
-              password: secret
-        required: true
+              type: object
+              required:
+                - token
+                - password
+              properties:
+                token:
+                  type: string
+                password:
+                  type: string
+                  minLength: 8
       responses:
         '200':
-          description: ''
-          headers: {}
-      deprecated: false
-      security: []
+          description: Password reset successful
+        '400':
+          description: Invalid or expired token
+
   /auth/change-password:
-    post:
+    put:
       tags:
         - Auth
-      summary: Change Password
-      operationId:  ChangePassword
-      parameters: []
+      summary: Change password while logged in
+      security:
+        - BearerAuth: []
       requestBody:
-        description: ''
+        required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/LoginUserRequest'
-            example:
-              email: susan@gmail.com
-              password: secret
-        required: true
+              type: object
+              required:
+                - currentPassword
+                - password
+              properties:
+                currentPassword:
+                  type: string
+                password:
+                  type: string
+                  minLength: 8
       responses:
         '200':
-          description: ''
-          headers: {}
-      deprecated: false
-      security: []
+          description: Password changed successfully
+        '400':
+          description: Invalid current password
+        '401':
+          description: Not authenticated
+
+  /auth/logout:
+    delete:
+      tags:
+        - Auth
+      summary: Log out user
+      security:
+        - BearerAuth: []
+      description: Removes refresh token and clears cookie
+      responses:
+        '200':
+          description: Successfully logged out
+        '401':
+          description: Not authenticated
+
+  /auth/google:
+    get:
+      tags:
+        - Auth
+      summary: Initiate Google OAuth
+      parameters:
+        - in: query
+          name: role
+          schema:
+            type: string
+            enum: [user, seller]
+        - in: query
+          name: redirect
+          schema:
+            type: string
+      responses:
+        '302':
+          description: Redirects to Google login
+
+  /auth/facebook:
+    get:
+      tags:
+        - Auth
+      summary: Initiate Facebook OAuth
+      parameters:
+        - in: query
+          name: role
+          schema:
+            type: string
+            enum: [user, seller]
+        - in: query
+          name: redirect
+          schema:
+            type: string
+      responses:
+        '302':
+          description: Redirects to Facebook login
 
   /categories:
     get:
@@ -488,7 +636,131 @@ paths:
       deprecated: false
 components:
   schemas:
-    schemas:
+    UserRegistration:
+      type: object
+      required:
+        - firstname
+        - lastname
+        - email
+        - password
+        - terms
+        - role
+      properties:
+        firstname:
+          type: string
+          minLength: 3
+          maxLength: 50
+          example: "John"
+          description: User's first name
+        lastname:
+          type: string
+          minLength: 3
+          maxLength: 50
+          example: "Doe"
+          description: User's last name
+        email:
+          type: string
+          format: email
+          example: "john.doe@example.com"
+          description: Must be unique and valid email format
+        password:
+          type: string
+          minLength: 8
+          example: "strongpassword123"
+          description: Minimum 8 characters
+        role:
+          type: string
+          enum: [user]
+          example: "user"
+          description: Must be 'user' for regular user registration
+        terms:
+          type: boolean
+          example: true
+          description: Must be true to accept terms and conditions
+
+    SellerRegistration:
+      type: object
+      required:
+        - firstname
+        - lastname
+        - email
+        - password
+        - mobile
+        - role
+        - storeName
+        - storeDetails
+        - terms
+      properties:
+        firstname:
+          type: string
+          minLength: 3
+          maxLength: 50
+          example: "Jane"
+          description: Seller's first name
+        lastname:
+          type: string
+          minLength: 3
+          maxLength: 50
+          example: "Smith"
+          description: Seller's last name
+        email:
+          type: string
+          format: email
+          example: "jane.smith@store.com"
+          description: Must be unique and valid email format
+        password:
+          type: string
+          minLength: 8
+          example: "strongpassword123"
+          description: Minimum 8 characters
+        mobile:
+          type: string
+          example: "+1234567890"
+          description: Required for sellers, must be valid phone number with country code
+        role:
+          type: string
+          enum: [seller]
+          example: "seller"
+          description: Must be 'seller' for seller registration
+        storeName:
+          type: string
+          minLength: 3
+          maxLength: 80
+          example: "Jane's Electronics"
+          description: Unique store name
+        storeDetails:
+          type: object
+          required:
+            - street
+            - state
+            - postalCode
+            - country
+          properties:
+            street:
+              type: string
+              example: "123 Market Street"
+              description: Store's street address
+            state:
+              type: string
+              example: "California"
+              description: Store's state/province
+            city:
+              type: string
+              example: "San Francisco"
+              description: Store's city
+            postalCode:
+              type: number
+              example: 94105
+              description: Store's postal/ZIP code
+            country:
+              type: string
+              example: "United States"
+              description: Store's country
+        terms:
+          type: boolean
+          example: true
+          description: Must be true to accept terms and conditions
+
     SubCategory:
       type: object
       required:
@@ -590,69 +862,6 @@ components:
                 type: string
                 example: "Not authorized to access this route" 
   
-    RegisterUserRequest:
-      title: RegisterUserRequest
-      required:
-        - name
-        - email
-        - password
-      type: object
-      properties:
-        name:
-          type: string
-        email:
-          type: string
-        password:
-          type: string
-      example:
-        name: bob
-        email: bob@gmail.com
-        password: secret
-    
-    LoginUserRequest:
-      title: LoginUserRequest
-      required:
-        - email
-        - password
-      type: object
-      properties:
-        email:
-          type: string
-        password:
-          type: string
-      example:
-        email: susan@gmail.com
-        password: secret
-    
-    CreateJobRequest:
-      title: CreateJobRequest
-      required:
-        - company
-        - position
-      type: object
-      properties:
-        company:
-          type: string
-        position:
-          type: string
-      example:
-        company: google
-        position: front-end developer
-    
-    UpdateJobRequest:
-      title: UpdateJobRequest
-      required:
-        - company
-        - position
-      type: object
-      properties:
-        company:
-          type: string
-        position:
-          type: string
-      example:
-        company: random
-        position: intern
   securitySchemes:
     httpBearer:
       type: http
