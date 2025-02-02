@@ -4,12 +4,20 @@ class APIFeatures {
     constructor(req, model, options = {}) {
         this.req = req;
         this.model = model;
+        this.pathMappings = options.pathMappings || {};
+        // Configure lookup settings for populated fields
+        this.lookupConfig = options.lookupConfig || {
+            // Default format:
+            // fieldPath: { from: 'collectionName', localField: 'fieldName', foreignField: '_id' }
+            // Example:
+            // 'category.name': { from: 'categories', localField: 'category', foreignField: '_id' }
+        };
 
         this.config = {
             pagination: {
-                defaultLimit: 25,
-                maxLimit: 100,
-                maxSkip: 10000
+                defaultLimit: options.pagination?.defaultLimit || 25,
+                maxLimit: options.pagination?.maxLimit || 100,
+                maxSkip: options.pagination?.maxSkip || 10000
             },
 
             fields: {
@@ -27,9 +35,6 @@ class APIFeatures {
 
                 // Fields that must always be selected
                 required: options.required || ['_id'],
-
-                // Fields that can be populated
-                populatable: options.populatable || []
             },
 
             // Search configuration
@@ -45,25 +50,24 @@ class APIFeatures {
                 allowed: options.filters || {
                     createdAt: ['gt', 'gte', 'lt', 'lte'],
                     updatedAt: ['gt', 'gte', 'lt', 'lte'],
-                    status: ['eq', 'ne', 'in'],
-                    // Add more field-specific filter operations
                 }
             },
 
             // Population configuration
             population: {
-                default: options.defaultPopulate || [],
-                maxDepth: options.maxPopulateDepth || 2
+                default: options?.population?.default || [],
+                maxDepth: options?.population?.maxDepth || 2
             }
         };
 
         this.query = null;
         this.queryObj = {};
+        this.isAggregation = false;
     }
 
     async execute() {
         try {
-            await this.buildQuery()
+            this.buildQuery()
                 .handleSearch()
                 .handleSelect()
                 .handleSort()
@@ -76,24 +80,193 @@ class APIFeatures {
         }
     }
 
+    async executeQuery() {
+        try {
+            // Add timeout to prevent long-running queries
+            if (!this.isAggregation) {
+                this.query = this.query.maxTimeMS(5000);
+            }
+
+            const results = await this.query;
+
+            // Get total count
+            let total;
+            if (this.isAggregation) {
+                // For aggregation, we need to run a separate count pipeline
+                const countPipeline = this.query.pipeline()
+                    .filter(stage => !stage.$skip && !stage.$limit); // Remove pagination stages
+
+                const countResult = await this.model.aggregate([
+                    ...countPipeline,
+                    { $count: 'total' }
+                ]);
+                total = countResult[0]?.total || 0;
+            } else {
+                total = await this.model.countDocuments(this.queryObj).maxTimeMS(5000);
+            }
+
+            const limit = Math.min(
+                parseInt(this.req.query.limit) || this.config.pagination.defaultLimit,
+                this.config.pagination.maxLimit
+            );
+
+            return {
+                success: true,
+                count: results.length,
+                total,
+                pages: !this.req.query.cursor ?
+                    Math.ceil(total / limit) :
+                    undefined,
+                currentPage: !this.req.query.cursor ?
+                    parseInt(this.req.query.page) || 1 :
+                    undefined,
+                data: results
+            };
+        } catch (error) {
+            console.error('Query execution error:', error);
+            throw new CustomError.BadRequestError(
+                `Query execution failed: ${error.message}`
+            );
+        }
+    }
+
+
+
     buildQuery() {
-        const reqQuery = this.sanitizeQueryParams({ ...this.req.query });
-        const removeFields = ['select', 'sort', 'page', 'limit', 'filter', 'search', 'cursor'];
+        try {
+            const reqQuery = this.sanitizeQueryParams({ ...this.req.query });
+            const removeFields = ['select', 'sort', 'page', 'limit', 'filter', 'search', 'cursor'];
+            removeFields.forEach(param => delete reqQuery[param]);
+            delete reqQuery._id;
 
-        removeFields.forEach(param => delete reqQuery[param]);
-        delete reqQuery._id;
+            const baseQuery = {};
+            const pipeline = [];
+            const processedLookups = new Set();
 
-        let queryStr = JSON.stringify(reqQuery);
-        queryStr = queryStr.replace(
-            /\b(gt|gte|lt|lte|in|nin|eq|ne|regex)\b/g,
-            match => `$${match}`
-        );
+            // Process each query parameter
+            for (const [field, value] of Object.entries(reqQuery)) {
+                const actualField = this.pathMappings[field] || field;
 
-        this.queryObj = JSON.parse(queryStr);
-        this.validateFilters(this.queryObj);
-        this.query = this.model.find(this.queryObj);
+                // Check if this field needs a lookup
+                const lookupNeeded = Object.keys(this.lookupConfig)
+                    .find(pattern => actualField.startsWith(pattern));
 
-        return this;
+                if (lookupNeeded && !processedLookups.has(lookupNeeded)) {
+                    // Handle lookup field
+                    const lookupSettings = this.lookupConfig[lookupNeeded];
+                    const lookupAlias = `_${lookupSettings.localField}`;
+
+                    // Add lookup stage
+                    pipeline.push({
+                        $lookup: {
+                            from: lookupSettings.from,
+                            localField: lookupSettings.localField,
+                            foreignField: lookupSettings.foreignField,
+                            as: lookupAlias
+                        }
+                    });
+
+                    // Add match stage for the lookup field
+                    const fieldPath = actualField.split('.').slice(1).join('.');
+                    const matchValue = this.parseQueryValue(value);
+
+                    pipeline.push({
+                        $match: {
+                            [`${lookupAlias}.${fieldPath}`]: matchValue
+                        }
+                    });
+
+                    processedLookups.add(lookupNeeded);
+                } else if (!lookupNeeded) {
+                    // Handle regular field
+                    baseQuery[actualField] = this.parseQueryValue(value);
+                }
+            }
+
+            // Add remaining filters to pipeline if any exist
+            if (Object.keys(baseQuery).length > 0) {
+                pipeline.push({ $match: baseQuery });
+            }
+
+            // Clean up lookup fields if we used any
+            if (processedLookups.size > 0) {
+                const projectStage = { $project: {} };
+                processedLookups.forEach(lookup => {
+                    const lookupSettings = this.lookupConfig[lookup];
+                    projectStage.$project[`_${lookupSettings.localField}`] = 0;
+                });
+                pipeline.push(projectStage);
+            }
+
+            // Determine whether to use aggregation or find
+            if (pipeline.length > 0) {
+                this.query = this.model.aggregate(pipeline);
+                this.isAggregation = true;
+            } else {
+                this.query = this.model.find(baseQuery);
+                this.isAggregation = false;
+            }
+
+            this.queryObj = baseQuery;
+
+            // Log the final query for debugging
+            console.log('Query Type:', this.isAggregation ? 'Aggregation' : 'Find');
+            console.log('Final Query:', JSON.stringify(
+                this.isAggregation ? pipeline : baseQuery,
+                null,
+                2
+            ));
+
+            return this;
+        } catch (error) {
+            throw new CustomError.BadRequestError(`Query building failed: ${error.message}`);
+        }
+    }
+
+    parseQueryValue(value) {
+        if (typeof value === 'string' && value.includes(',')) {
+            return { $in: value.split(',').map(v => this.parseValue(v.trim())) };
+        }
+
+        if (typeof value === 'object' && value !== null) {
+            const parsedValue = {};
+            for (const [operator, operatorValue] of Object.entries(value)) {
+                const mongoOperator = operator.startsWith('$') ? operator : `$${operator}`;
+                parsedValue[mongoOperator] = this.parseValue(operatorValue);
+            }
+            return parsedValue;
+        }
+
+        return this.parseValue(value);
+    }
+
+    parseValue(value) {
+        // Handle arrays (for $in operator)
+        if (Array.isArray(value)) {
+            return value.map(item => this.parseValue(item));
+        }
+
+        // Handle numeric strings
+        if (typeof value === 'string' && !isNaN(value) && value.trim() !== '') {
+            return Number(value);
+        }
+
+        // Handle comma-separated strings
+        if (typeof value === 'string' && value.includes(',')) {
+            return value.split(',').map(v => this.parseValue(v.trim()));
+        }
+
+        // Handle boolean strings
+        if (value === 'true' || value === 'false') {
+            return value === 'true';
+        }
+
+        // Handle date strings
+        if (typeof value === 'string' && Date.parse(value)) {
+            return new Date(value);
+        }
+
+        return value;
     }
 
     handleSearch() {
@@ -133,24 +306,19 @@ class APIFeatures {
                 .filter(field => this.isValidFieldName(field));
 
             if (this.config.fields.selectable.includes('*')) {
-                // If all fields are selectable, add all requested fields
                 requestedFields.forEach(field => fields.add(field));
             } else {
-                // Only add fields that are in the selectable list
                 requestedFields
                     .filter(field => this.config.fields.selectable.includes(field))
                     .forEach(field => fields.add(field));
             }
         } else {
-            // If no fields are specified, add all selectable fields
             if (this.config.fields.selectable.includes('*')) {
-                // Add all fields except excluded ones
                 const modelFields = Object.keys(this.model.schema.paths);
                 modelFields
                     .filter(field => !this.config.fields.excluded.includes(field))
                     .forEach(field => fields.add(field));
             } else {
-                // Add only specifically allowed fields
                 this.config.fields.selectable.forEach(field => fields.add(field));
             }
         }
@@ -158,9 +326,21 @@ class APIFeatures {
         // Remove excluded fields
         this.config.fields.excluded.forEach(field => fields.delete(field));
 
-        // Convert Set to space-separated string
-        const fieldString = Array.from(fields).join(' ');
-        this.query = this.query.select(fieldString);
+        // Convert fields Set to an object for projection
+        const fieldProjection = {};
+        fields.forEach(field => {
+            fieldProjection[field] = 1;
+        });
+
+        if (this.isAggregation) {
+            // For aggregation, add a $project stage
+            this.query.pipeline().push({
+                $project: fieldProjection
+            });
+        } else {
+            // For regular queries, use select
+            this.query = this.query.select(Array.from(fields).join(' '));
+        }
 
         return this;
     }
@@ -176,116 +356,92 @@ class APIFeatures {
                     sortBy[field.trim()] = order?.toLowerCase() === 'desc' ? -1 : 1;
                 });
 
-                this.query = this.query.sort(sortBy);
+                if (this.isAggregation) {
+                    this.query.pipeline().push({ $sort: sortBy });
+                } else {
+                    this.query = this.query.sort(sortBy);
+                }
             } catch (error) {
                 throw new CustomError.BadRequestError('Invalid sort format');
             }
         } else {
             // Default sort by createdAt if exists
-            this.query = this.query.sort('-createdAt');
+            const defaultSort = { createdAt: -1 };
+            if (this.isAggregation) {
+                this.query.pipeline().push({ $sort: defaultSort });
+            } else {
+                this.query = this.query.sort(defaultSort);
+            }
         }
         return this;
-    }
-    validateFilters(filters) {
-        for (const [field, operations] of Object.entries(filters)) {
-            const allowedOps = this.config.filters.allowed[field];
-            if (!allowedOps) {
-                throw new CustomError.BadRequestError(`Filtering not allowed on field: ${field}`);
-            }
-
-            for (const op of Object.keys(operations)) {
-                const cleanOp = op.replace('$', '');
-                if (!allowedOps.includes(cleanOp)) {
-                    throw new CustomError.BadRequestError(
-                        `Operation '${cleanOp}' not allowed on field: ${field}`
-                    );
-                }
-            }
-        }
     }
 
     handlePagination() {
-        // Sanitize and validate limit
-        const requestedLimit = parseInt(this.req.query.limit) || this.config.defaultLimit;
-        const limit = Math.min(Math.max(1, requestedLimit), this.config.maxLimit);
+        const requestedLimit = parseInt(this.req.query.limit) || this.config.pagination.defaultLimit;
+        const limit = Math.min(Math.max(1, requestedLimit), this.config.pagination.maxLimit);
+        const page = Math.max(parseInt(this.req.query.page) || 1, 1);
+        const skip = (page - 1) * limit;
 
-        if (this.req.query.cursor) {
-            // Cursor-based pagination
-            if (!this.isValidObjectId(this.req.query.cursor)) {
-                throw new CustomError.BadRequestError('Invalid cursor format');
-            }
+        if (skip > this.config.pagination.maxSkip) {
+            throw new CustomError.BadRequestError('Page number too large');
+        }
 
-            const cursorQuery = {
-                _id: { $gt: this.req.query.cursor }
-            };
-            this.query = this.query.find(cursorQuery).limit(limit);
+        if (this.isAggregation) {
+            this.query.pipeline().push(
+                { $skip: skip },
+                { $limit: limit }
+            );
         } else {
-            // Offset-based pagination
-            const page = Math.max(parseInt(this.req.query.page) || 1, 1);
-            const skip = (page - 1) * limit;
-
-            // Prevent large skip values
-            if (skip > 10000) {
-                throw new CustomError.BadRequestError('Page number too large');
-            }
-
             this.query = this.query.skip(skip).limit(limit);
         }
+
         return this;
+    }
+    validateFilters(filters) {
+        for (const [field, conditions] of Object.entries(filters)) {
+            const baseField = field.split('.').pop();
+            const allowedOps = this.config.filters?.allowed?.[field] ||
+                this.config.filters?.allowed?.[baseField] ||
+                [];
+
+            if (typeof conditions === 'object' && conditions !== null) {
+                for (const op of Object.keys(conditions)) {
+                    const cleanOp = op.replace('$', '');
+                    if (!allowedOps.includes(cleanOp)) {
+                        throw new CustomError.BadRequestError(
+                            `Operation '${cleanOp}' not allowed on field: ${field}`
+                        );
+                    }
+                }
+            }
+        }
     }
 
     handlePopulation() {
-        if (this.population && Array.isArray(this.population)) {
-            this.population.forEach(populate => {
-                if (Array.isArray(populate) && populate.length > 0) {
-                    this.query = this.query.populate(...populate);
-                }
-            });
+        try {
+            // Check if population config exists in this.config
+            if (this.config.population?.default?.length > 0) {
+                this.config.population.default.forEach(popConfig => {
+                    if (Array.isArray(popConfig)) {
+                        // Convert array format ['path', 'select'] to object format
+                        const [path, select] = popConfig;
+                        this.query = this.query.populate({
+                            path,
+                            select: select.split(' ')
+                        });
+                    } else if (typeof popConfig === 'object' && popConfig.path) {
+                        // Already in correct object format
+                        this.query = this.query.populate(popConfig);
+                    }
+                });
+            }
+        } catch (error) {
+            console.error('Population error:', error);
+            // Continue with query even if population fails
         }
         return this;
     }
 
-    async executeQuery() {
-        try {
-            // Add timeout to prevent long-running queries
-            this.query = this.query.maxTimeMS(5000);
-
-            const results = await this.query;
-
-            // Get total count for offset pagination
-            const total = !this.req.query.cursor ?
-                await this.model.countDocuments(this.queryObj).maxTimeMS(5000) :
-                null;
-
-            const limit = Math.min(
-                parseInt(this.req.query.limit) || this.config.defaultLimit,
-                this.config.maxLimit
-            );
-
-            // Prepare next cursor for cursor-based pagination
-            const nextCursor = results.length && this.req.query.cursor ?
-                results[results.length - 1]._id :
-                null;
-
-            return {
-                success: true,
-                count: results.length,
-                total,
-                pages: !this.req.query.cursor ?
-                    (Math.ceil(total / limit) === 0 && results.length ? 1 : Math.ceil(total / limit)) :
-                    undefined,
-                currentPage: !this.req.query.cursor ?
-                    parseInt(this.req.query.page) || 1 :
-                    undefined,
-                nextCursor,
-                data: results
-            };
-        } catch (error) {
-            throw new CustomError.BadRequestError(
-                `Query execution failed: ${error.message}`
-            );
-        }
-    }
 
     // Utility methods
     sanitizeQueryParams(params) {
@@ -379,41 +535,169 @@ const categoryAPIFeatures = createAPIFeatures(categoryFeatures);
 
 
 const productFeatures = {
-    searchable: ['name', 'description', 'brand', 'category'],
+    pathMappings : {
+            // Direct mappings for simple filters
+            category: 'category.name',
+            subcategory: 'subcategory.name',
+            brand: 'brand',
+            seller: 'seller.storeName',
+    },
+    // Fields that can be searched using text search or regex
+    searchable: [
+        'name',
+        'description',
+        'shortDescription',
+        'brand',
+        'status',
+        'category.name',
+        'subcategory.name'
+    ],
+
+    // Fields that can be used for sorting
     sortable: [
         'name',
         'basePrice',
+        'salePrice',
         'createdAt',
         'updatedAt',
         'ratingsAverage',
-        'sold'
+        'ratingsQuantity',
+        'sold',
+        'quantity',
+        'stockStatus'
     ],
-    selectable: ['*'],
+
+    // All fields that can be selected in queries
+    selectable: [
+        'name',
+        'basePrice',
+        'slug',
+        'mainImage',
+        'images',
+        'description',
+        'shortDescription',
+        'category',
+        'subcategory',
+        'seller',
+        'brand',
+        'inventoryManagement',
+        'quantity',
+        'lowStockThreshold',
+        'isOutOfStock',
+        'isLowStock',
+        'allowBackorders',
+        'backorderLimit',
+        'backorderCount',
+        'reservedQuantity',
+        'sold',
+        'stockStatus',
+        'restockDate',
+        'attributes',
+        'variations',
+        'hasVariations',
+        'salePrice',
+        'saleStartDate',
+        'saleEndDate',
+        'taxRate',
+        'shippingOptions',
+        'shippingWeight',
+        'dimensions',
+        'isDigital',
+        'digitalDownloadInfo',
+        'status',
+        'metadata',
+        'ratingsAverage',
+        'ratingsQuantity',
+        'createdAt',
+        'updatedAt'
+    ],
+
+    // Fields to exclude from responses
     excluded: ['__v'],
-    required: ['_id', 'name', 'basePrice'],
+
+    // Fields that must always be returned
+    required: ['_id', 'name', 'basePrice', 'status'],
+
+    // Search configuration
     useTextIndex: true,
     fuzzySearch: true,
+    caseSensitive: false,
+
+    // Define allowed filter operations for each field
     filters: {
+        // Basic product details
         name: ['eq', 'ne', 'regex'],
-        basePrice: ['gt', 'gte', 'lt', 'lte'],
-        ratingsAverage: ['gt', 'gte', 'lt', 'lte'],
-        stockStatus: ['eq', 'in'],
-        category: ['eq', 'in'],
-        brand: ['eq', 'in'],
-        createdAt: ['gt', 'gte', 'lt', 'lte'],
+        slug: ['eq', 'ne'],
+        brand: ['eq', 'ne', 'in', 'nin'],
+        status: ['eq', 'ne', 'in'],
+
+        // Pricing filters
+        basePrice: ['eq', 'ne', 'gt', 'gte', 'lt', 'lte', 'between'],
+        salePrice: ['eq', 'ne', 'gt', 'gte', 'lt', 'lte', 'between'],
+        taxRate: ['eq', 'ne', 'gt', 'gte', 'lt', 'lte'],
+
+        // Inventory filters
+        quantity: ['eq', 'ne', 'gt', 'gte', 'lt', 'lte'],
+        stockStatus: ['eq', 'ne', 'in'],
+        isOutOfStock: ['eq'],
+        isLowStock: ['eq'],
+        allowBackorders: ['eq'],
+
+        // Category and seller filters
+        'category.name': ['eq', 'in'],
+        'subcategory.name': ['eq', 'in'],
+        'seller.firstname': ['eq', 'in'],
+        'seller.lastname': ['eq', 'in'],
+        'seller.storeName': ['eq', 'in'],
+
+        // Rating filters
+        ratingsAverage: ['gt', 'gte', 'lt', 'lte', 'between'],
+        ratingsQuantity: ['gt', 'gte', 'lt', 'lte'],
+        
+        // Product type filters
+        isDigital: ['eq'],
+        hasVariations: ['eq'],
+
+        // Date filters
+        createdAt: ['gt', 'gte', 'lt', 'lte', 'between'],
+        updatedAt: ['gt', 'gte', 'lt', 'lte', 'between'],
+        saleStartDate: ['gt', 'gte', 'lt', 'lte', 'between'],
+        saleEndDate: ['gt', 'gte', 'lt', 'lte', 'between']
     },
+
+    // Population configuration
     population: {
         default: [
             { path: 'category', select: 'name' },
-            { path: 'seller', select: 'name email' }
-        ]
+            { path: 'subcategory', select: 'name' },
+            { path: 'seller', select: 'firstname lastname storeName profileImage' }
+        ],
+        maxDepth: 2
     },
+    lookupConfig: {
+        'category.name': {
+            from: 'categories',
+            localField: 'category',
+            foreignField: '_id'
+        },
+        'subcategory.name': {
+            from: 'subcategories',
+            localField: 'subcategory',
+            foreignField: '_id'
+        },
+        'seller.storeName': {
+            from: 'users',
+            localField: 'seller',
+            foreignField: '_id'
+        }
+    },
+    // Pagination configuration
     pagination: {
         defaultLimit: 24,
-        maxLimit: 100
+        maxLimit: 100,
+        maxSkip: 10000
     }
 };
-
 const productAPIFeatures = createAPIFeatures(productFeatures);
 
 
