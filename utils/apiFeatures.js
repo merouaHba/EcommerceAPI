@@ -68,11 +68,11 @@ class APIFeatures {
     async execute() {
         try {
             this.buildQuery()
-                .handleSearch()
+            .handlePopulation()
+            .handleSearch()
                 .handleSelect()
                 .handleSort()
-                .handlePagination()
-                .handlePopulation();
+                .handlePagination();
 
             return this.executeQuery();
         } catch (error) {
@@ -85,13 +85,15 @@ class APIFeatures {
             // Add timeout to prevent long-running queries
             if (!this.isAggregation) {
                 this.query = this.query.maxTimeMS(5000);
+            }else{
+                // console.log(this.query.pipeline())
             }
-
             const results = await this.query;
 
             // Get total count
             let total;
             if (this.isAggregation) {
+               
                 // For aggregation, we need to run a separate count pipeline
                 const countPipeline = this.query.pipeline()
                     .filter(stage => !stage.$skip && !stage.$limit); // Remove pagination stages
@@ -129,8 +131,6 @@ class APIFeatures {
             );
         }
     }
-
-
 
     buildQuery() {
         try {
@@ -209,14 +209,6 @@ class APIFeatures {
 
             this.queryObj = baseQuery;
 
-            // Log the final query for debugging
-            console.log('Query Type:', this.isAggregation ? 'Aggregation' : 'Find');
-            console.log('Final Query:', JSON.stringify(
-                this.isAggregation ? pipeline : baseQuery,
-                null,
-                2
-            ));
-
             return this;
         } catch (error) {
             throw new CustomError.BadRequestError(`Query building failed: ${error.message}`);
@@ -275,10 +267,22 @@ class APIFeatures {
             const searchFields = this.config.fields.searchable;
 
             if (this.config.search.useTextIndex) {
-                this.queryObj.$text = {
-                    $search: searchTerm,
-                    $caseSensitive: this.config.search.caseSensitive
-                };
+                if (this.isAggregation) {
+                    this.query.pipeline().push({
+                        $match: {
+                            $text: {
+                                $search: searchTerm,
+                                $caseSensitive: this.config.search.caseSensitive
+                            }
+                        }
+                    });
+                } else {
+                    this.queryObj.$text = {
+                        $search: searchTerm,
+                        $caseSensitive: this.config.search.caseSensitive
+                    };
+                    this.query = this.model.find(this.queryObj);
+                }
             } else {
                 const searchConditions = searchFields.map(field => ({
                     [field]: {
@@ -288,10 +292,15 @@ class APIFeatures {
                     }
                 }));
 
-                this.queryObj.$or = searchConditions;
+                if (this.isAggregation) {
+                    this.query.pipeline().push({
+                        $match: { $or: searchConditions }
+                    });
+                } else {
+                    this.queryObj.$or = searchConditions;
+                    this.query = this.model.find(this.queryObj);
+                }
             }
-
-            this.query = this.model.find(this.queryObj);
         }
         return this;
     }
@@ -329,7 +338,16 @@ class APIFeatures {
         // Convert fields Set to an object for projection
         const fieldProjection = {};
         fields.forEach(field => {
-            fieldProjection[field] = 1;
+            if (field.includes('.')) {
+                // Handle nested fields (e.g., subcategories.name)
+                const [parentField, childField] = field.split('.');
+                if (!fieldProjection[parentField]) {
+                    fieldProjection[parentField] = {};
+                }
+                fieldProjection[parentField][childField] = 1;
+            } else {
+                fieldProjection[field] = 1;
+            }
         });
 
         if (this.isAggregation) {
@@ -419,25 +437,90 @@ class APIFeatures {
 
     handlePopulation() {
         try {
-            // Check if population config exists in this.config
-            if (this.config.population?.default?.length > 0) {
+            if (!this.config.population?.default?.length) {
+                return this;
+            }
+
+            if (this.isAggregation) {
+                const preservedFields = { _id: 1 };
+
                 this.config.population.default.forEach(popConfig => {
-                    if (Array.isArray(popConfig)) {
-                        // Convert array format ['path', 'select'] to object format
-                        const [path, select] = popConfig;
-                        this.query = this.query.populate({
-                            path,
-                            select: select.split(' ')
+                    const {
+                        path,
+                        select,
+                        match,
+                        pathfrom,
+                        isVirtual
+                    } = popConfig;
+
+                    // Handle virtual populate differently
+                    if (isVirtual) {
+                        // Add lookup stage
+                        this.query.pipeline().push({
+                            $lookup: {
+                                from: pathfrom || path + 's',
+                                localField: '_id',
+                                foreignField: 'parentCategory',
+                                pipeline: [
+                                    ...(match ? [{ $match: match }] : []),
+                                    ...(select ? [{
+                                        $project: select.split(' ').reduce((acc, field) => {
+                                            acc[field] = 1;
+                                            return acc;
+                                        }, { _id: 1 })
+                                    }] : [])
+                                ],
+                                as: path
+                            }
                         });
-                    } else if (typeof popConfig === 'object' && popConfig.path) {
-                        // Already in correct object format
-                        this.query = this.query.populate(popConfig);
+                    } else {
+                        // Original population code for non-virtual fields
+                        this.query.pipeline().push({
+                            $lookup: {
+                                from: pathfrom || this.model.db.collection(path + 's').name,
+                                localField: path,
+                                foreignField: '_id',
+                                as: path
+                            }
+                        });
+
+                        if (!this.model.schema.virtuals[path]) {
+                            this.query.pipeline().push({
+                                $unwind: {
+                                    path: `$${path}`,
+                                    preserveNullAndEmptyArrays: true
+                                }
+                            });
+                        }
+                    }
+
+                    // Handle select fields
+                    if (select) {
+                        select.split(' ').forEach(field => {
+                            preservedFields[`${path}.${field}`] = 1;
+                        });
+                    }
+                });
+
+                // Add preserved fields to selectable fields
+                Object.keys(preservedFields).forEach(field => {
+                    if (!this.config.fields.selectable.includes(field)) {
+                        this.config.fields.selectable.push(field);
+                    }
+                });
+            } else {
+                // Handle regular populate
+                this.config.population.default.forEach(popConfig => {
+                    if (typeof popConfig === 'object' && popConfig.path) {
+                        this.query = this.query.populate({
+                            ...popConfig,
+                            model: this.model.db.model(popConfig.pathfrom || popConfig.path)
+                        });
                     }
                 });
             }
         } catch (error) {
             console.error('Population error:', error);
-            // Continue with query even if population fails
         }
         return this;
     }
@@ -488,47 +571,113 @@ const createAPIFeatures = (modelConfig) => {
 
 
 const categoryFeatures = {
-    // Searchable fields - utilizing the text index defined in schema
-    searchable: ['name', 'description', 'subcategories.name', 'subcategories.description'],
+    pathMappings: {
+        subcategory: 'subcategories.name',
+    },
+    // Enhanced searchable fields
+    searchable: [
+        'name',
+        'description',
+        'slug',
+        'metadata',
+        'subcategories.name',
+    ],
 
-    // Fields that can be sorted
+    // Extended sortable fields
     sortable: [
         'name',
         'createdAt',
-        'updatedAt'
+        'updatedAt',
+        'displayOrder',
+        'featured',
+        'status',
+        'productCount'
     ],
 
-    // All fields that can be selected in queries
+    // Comprehensive selectable fields
     selectable: [
-        '*',
+        'name',
+        'description',
+        'slug',
+        'image.url',
+        'parentCategory',
+        'displayOrder',
+        'featured',
+        'status',
+        'metadata',
+        'productCount',
+        'createdAt',
+        'updatedAt',
+        'subcategories'
     ],
 
-    // No sensitive fields to exclude in this schema
-    excluded: [],
+    // Fields to exclude
+    excluded: ['__v'],
 
-    // Fields that must always be returned
+    // Required fields in response
     required: ['_id', 'name'],
 
-    // Enable text index searching since we defined it in the schema
-    useTextIndex: true,
-
-    // Enable fuzzy search for better matching
-    fuzzySearch: true,
-
-    // Define allowed filter operations for each field
-    filters: {
-        // Main category fields
-        name: ['eq', 'ne', 'regex'],
-        createdAt: ['gt', 'gte', 'lt', 'lte'],
-        updatedAt: ['gt', 'gte', 'lt', 'lte'],
+    // Search configuration
+    search: {
+        useTextIndex: true,
+        fuzzySearch: true,
+        caseSensitive: false
     },
 
-    // Pagination defaults
+    // Enhanced filter operations
+    filters: {
+        // Basic fields
+        name: ['eq', 'ne', 'regex', 'in', 'nin'],
+        slug: ['eq', 'ne', 'in', 'nin'],
+        status: ['eq', 'ne', 'in'],
+        featured: ['eq'],
+        displayOrder: ['eq', 'gt', 'gte', 'lt', 'lte'],
+
+        'subcategories.name': ['eq', 'ne', 'regex', 'in', 'nin'],
+        // Parent category filters
+        parentCategory: ['eq'],
+
+        // Date filters
+        createdAt: ['gt', 'gte', 'lt', 'lte', 'between'],
+        updatedAt: ['gt', 'gte', 'lt', 'lte', 'between'],
+
+        // Virtual field filters
+        productCount: ['gt', 'gte', 'lt', 'lte']
+    },
+
+    // Add lookup configuration for subcategories
+    lookupConfig: {
+        'subcategories.name': {
+            from: 'categories',
+            localField: '_id',
+            foreignField: 'parentCategory'
+        },
+    },
+
+    // Population configuration
+    population: {
+        default: [
+            {
+                path: 'subcategories',
+                select: 'name description slug image.url status displayOrder featured',
+                match: { status: 'active' },  // Only get active subcategories
+                options: { sort: { displayOrder: 1 } },  // Sort subcategories by displayOrder
+                pathfrom: 'categories',
+                isVirtual: true 
+            }
+
+        ],
+        maxDepth: 2
+    },
+
+    // Pagination configuration
     pagination: {
-        defaultLimit: 10,
-        maxLimit: 50
+        defaultLimit: 20,
+        maxLimit: 50,
+        maxSkip: 5000
     }
 };
+
 
 // Create the configured API features instance
 const categoryAPIFeatures = createAPIFeatures(categoryFeatures);
@@ -538,7 +687,7 @@ const productFeatures = {
     pathMappings : {
             // Direct mappings for simple filters
             category: 'category.name',
-            subcategory: 'subcategory.name',
+        subcategory: 'category.subcategories.name',
             brand: 'brand',
             seller: 'seller.storeName',
     },
@@ -550,7 +699,7 @@ const productFeatures = {
         'brand',
         'status',
         'category.name',
-        'subcategory.name'
+        'category.subcategories.name'
     ],
 
     // Fields that can be used for sorting
@@ -572,13 +721,13 @@ const productFeatures = {
         'name',
         'basePrice',
         'slug',
-        'mainImage',
-        'images',
+        'mainImage.url',
+        'images.url',
         'description',
         'shortDescription',
-        'category',
+        /* 'category',
         'subcategory',
-        'seller',
+        'seller', */
         'brand',
         'inventoryManagement',
         'quantity',
@@ -645,7 +794,7 @@ const productFeatures = {
 
         // Category and seller filters
         'category.name': ['eq', 'in'],
-        'subcategory.name': ['eq', 'in'],
+        'category.subcategories.name': ['eq', 'in'],
         'seller.firstname': ['eq', 'in'],
         'seller.lastname': ['eq', 'in'],
         'seller.storeName': ['eq', 'in'],
@@ -668,9 +817,8 @@ const productFeatures = {
     // Population configuration
     population: {
         default: [
-            { path: 'category', select: 'name' },
-            { path: 'subcategory', select: 'name' },
-            { path: 'seller', select: 'firstname lastname storeName profileImage' }
+            { path: 'category', select: 'name subcategories' , pathfrom : 'categories' },
+            { path: 'seller', select: 'firstname lastname storeName profilePicture' ,pathfrom:'users'}
         ],
         maxDepth: 2
     },
@@ -681,15 +829,15 @@ const productFeatures = {
             foreignField: '_id'
         },
         'subcategory.name': {
-            from: 'subcategories',
-            localField: 'subcategory',
+            from: 'categories',
+            localField: 'category',
             foreignField: '_id'
         },
         'seller.storeName': {
             from: 'users',
             localField: 'seller',
             foreignField: '_id'
-        }
+        },
     },
     // Pagination configuration
     pagination: {
@@ -701,10 +849,149 @@ const productFeatures = {
 const productAPIFeatures = createAPIFeatures(productFeatures);
 
 
+
+const sellerProductFeatures = {
+    pathMappings: {
+        category: 'category.name',
+        subcategory: 'subcategory.name'
+    },
+
+    // Searchable fields for seller products
+    searchable: [
+        'name',
+        'description',
+        'shortDescription',
+        'brand',
+        'sku',
+        'category.name',
+        'subcategory.name'
+    ],
+
+    // Sortable fields
+    sortable: [
+        'name',
+        'basePrice',
+        'createdAt',
+        'updatedAt',
+        'quantity',
+        'sold',
+        'stockStatus',
+        'status'
+    ],
+
+    // Selectable fields
+    selectable: [
+        'name',
+        'slug',
+        'basePrice',
+        'salePrice',
+        'mainImage.url',
+        'images.url',
+        'category',
+        'subcategory',
+        'brand',
+        'quantity',
+        'sold',
+        'stockStatus',
+        'status',
+        'ratingsAverage',
+        'ratingsQuantity',
+        'createdAt',
+        'updatedAt'
+    ],
+
+    // Excluded fields
+    excluded: ['__v', 'metadata'],
+
+    // Required fields
+    required: ['_id', 'name', 'status', 'stockStatus'],
+
+    // Search configuration
+    search: {
+        useTextIndex: true,
+        fuzzySearch: true,
+        caseSensitive: false
+    },
+
+    // Filter configuration
+    filters: {
+        // Basic product details
+        name: ['eq', 'ne', 'regex'],
+        sku: ['eq', 'ne', 'in'],
+        brand: ['eq', 'ne', 'in'],
+        status: ['eq', 'ne', 'in'],
+        stockStatus: ['eq', 'ne', 'in'],
+
+        // Pricing filters
+        basePrice: ['eq', 'ne', 'gt', 'gte', 'lt', 'lte'],
+        salePrice: ['eq', 'ne', 'gt', 'gte', 'lt', 'lte'],
+
+        // Inventory filters
+        quantity: ['eq', 'ne', 'gt', 'gte', 'lt', 'lte'],
+        sold: ['gt', 'gte', 'lt', 'lte'],
+
+        // Category filters
+        'category.name': ['eq', 'in'],
+        'category.subcategories.name': ['eq', 'in'],
+
+        // Date filters
+        createdAt: ['gt', 'gte', 'lt', 'lte'],
+        updatedAt: ['gt', 'gte', 'lt', 'lte']
+    },
+
+    // Lookup configuration for populated fields
+    lookupConfig: {
+        'category.name': {
+            from: 'categories',
+            localField: 'category',
+            foreignField: '_id'
+        },
+        'category.subcategories.name': {  // Updated lookup config
+            from: 'categories',
+            localField: 'category',
+            foreignField: '_id'
+        },
+        'seller.storeName': {
+            from: 'users',
+            localField: 'seller',
+            foreignField: '_id'
+        }
+    },
+
+    // population configuration
+    population: {
+        default: [
+            {
+                path: 'category',
+                select: 'name subcategories',  // Include subcategories in selection
+                pathfrom: 'categories'
+            },
+            {
+                path: 'seller',
+                select: 'firstname lastname storeName profilePicture',
+                pathfrom: 'users'
+            }
+        ],
+        maxDepth: 2
+    },
+
+    // Pagination configuration
+    pagination: {
+        defaultLimit: 20,
+        maxLimit: 50,
+        maxSkip: 5000
+    }
+};
+
+// Create the configured API features instance
+const sellerProductsAPIFeatures = createAPIFeatures(sellerProductFeatures);
+
+
 module.exports = {
     APIFeatures,
     createAPIFeatures,
     // Export the configured instance
     categoryAPIFeatures,
-    productAPIFeatures
+    productAPIFeatures,
+    sellerProductsAPIFeatures
 };
