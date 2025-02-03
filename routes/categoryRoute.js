@@ -10,8 +10,4 @@ router.put('/:id/update-category-image', authenticateUser,authorizePermissions('
 router.get('/:id', getCategory)
 router.put('/:id', authenticateUser,authorizePermissions('admin'), updateCategory)
 router.delete('/:id', authenticateUser,authorizePermissions('admin'), deleteCategory)
-router.post('/:categoryId/subcategories', authenticateUser, authorizePermissions('admin'), addSubcategory)
-router.put('/:categoryId/subcategories/:subcategoryId', authenticateUser, authorizePermissions('admin'), updateSubcategory)
-router.delete('/:categoryId/subcategories/:subcategoryId', authenticateUser, authorizePermissions('admin'), deleteSubcategory)
-
 module.exports = router
