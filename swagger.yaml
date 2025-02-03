@@ -317,50 +317,104 @@ paths:
     get:
       tags:
         - Category
-      summary: Get all categories
+      summary: Get all categories with filtering, sorting, and pagination
       description: |
-        Retrieves a paginated list of all categories with optional filtering, sorting, and field selection.
-        Supports text search across name and description fields.
+        Retrieves a paginated list of categories with powerful filtering and sorting capabilities.
+        - Supports text search across name, description, and subcategory names
+        - Includes virtual fields like productCount
+        - Automatically populates active subcategories
+        - Supports complex filtering operations
       parameters:
-        - in: query
-          name: search
+        - name: search
+          in: query
+          description: |
+            Search term for full-text search across:
+            - Category name
+            - Category description
+            - Subcategory names
+            - Metadata fields
           schema:
             type: string
+        - name: sort
+          in: query
           description: |
-            Search term to filter categories by name or description.
-            Uses text index if enabled, otherwise performs regex search.
-            Example: "Electronics"
-        - in: query
-          name: sort
+            Comma-separated list of fields to sort by. Supported fields:
+            - name
+            - createdAt
+            - updatedAt
+            - displayOrder
+            - featured
+            - status
+            - productCount
+            
+            Use :desc for descending order. Example: "name:desc,createdAt"
           schema:
             type: string
-          description: |
-            Comma-separated list of fields to sort by. Use :desc for descending order.
-            Example: "name:desc,createdAt"
-          example: "name:desc"
-        - in: query
-          name: page
+        - name: page
+          in: query
           schema:
             type: integer
             minimum: 1
-          description: | 
-             Page number for pagination (default: 1)
-        - in: query
-          name: limit
+            default: 1
+        - name: cursor
+          in: query
+          description: |
+            Base64 encoded cursor for pagination.
+            - Used for retrieving subsequent pages of results
+            - Encoded value of the last item's `_id` from the previous request
+            - Mutually exclusive with `page` and `limit` parameters
+            - Supports forward pagination
+            - Default encoding is base64
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: |
+            Number of items to retrieve per page.
+            - When using cursor pagination, defaults to 20
+            - Maximum value is 50
+            - Reduces the number of results returned
           schema:
             type: integer
             minimum: 1
             maximum: 50
+            default: 20
+        - name: select
+          in: query
           description: |
-            Number of items per page (default: 10, max: 50)
-            example: 10
-        - in: query
-          name: select
+            Comma-separated list of fields to include. Available fields:
+            - name
+            - description
+            - slug
+            - image.url
+            - parentCategory
+            - displayOrder
+            - featured
+            - status
+            - metadata
+            - productCount
+            - createdAt
+            - updatedAt
+            - subcategories
           schema:
             type: string
+        - name: filter
+          in: query
           description: |
-            Comma-separated list of fields to include in the response.
-            Example: "name,description,image"
+            Complex filtering options:
+            - name: [eq, ne, regex, in, nin]
+            - slug: [eq, ne, in, nin]
+            - status: [eq, ne, in]
+            - featured: [eq]
+            - displayOrder: [eq, gt, gte, lt, lte]
+            - subcategories.name: [eq, ne, regex, in, nin]
+            - parentCategory: [eq]
+            - createdAt/updatedAt: [gt, gte, lt, lte, between]
+            - productCount: [gt, gte, lt, lte]
+            
+            Example: status=active&featured=true&displayOrder[gte]=5
+          schema:
+            type: object
       responses:
         '200':
           description: Successfully retrieved categories
@@ -371,51 +425,40 @@ paths:
                 properties:
                   success:
                     type: boolean
-                    example: true
                   count:
                     type: integer
-                    description: Number of items in current page
-                    example: 10
+                    description: Items in current page
                   total:
                     type: integer
-                    description: Total number of items across all pages
-                    example: 45
+                    description: Total items matching query
                   pages:
                     type: integer
-                    description: Total number of pages
-                    example: 5
+                    description: Total pages
                   currentPage:
                     type: integer
-                    description: Current page number
-                    example: 1
+                  nextCursor:
+                    type: string
+                    description: Base64 encoded cursor for the next page of results
+                    nullable: true
                   data:
                     type: array
                     items:
                       $ref: '#/components/schemas/Category'
-        '400':
-          description: Bad request - invalid parameters
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: false
-                  error:
-                    type: string
-                    example: "Invalid sort parameter"
-    
+
     post:
       tags:
         - Category
-      summary: Create a new category
+      summary: Create a new category or subcategory
       security:
         - BearerAuth: []
       description: |
-        Admin only endpoint to create a new category.
-        Requires multipart/form-data for image upload.
-        Image will be uploaded to Cloudinary.
+        Admin-only endpoint to create a new category or subcategory.
+        - Requires admin role
+        - Handles image upload via multer
+        - Creates parent category when parentCategory is not provided
+        - Creates subcategory when parentCategory ID is provided
+        - Validates unique category/subcategory names within their scope
+        - Automatically generates SEO-friendly slugs
       requestBody:
         required: true
         content:
@@ -429,88 +472,70 @@ paths:
               properties:
                 name:
                   type: string
-                  description: Unique name for the category
-                  example: "Electronics"
+                  minLength: 2
+                  maxLength: 50
+                  description: Name of the category/subcategory
                 description:
                   type: string
-                  description: Detailed description of the category
-                  example: "Electronic devices and accessories"
+                  minLength: 10
+                  maxLength: 500
+                  description: Detailed description
                 image:
                   type: string
                   format: binary
-                  description: | 
-                    Category image file (supported formats: jpg, jpeg, png)
+                  description: Category/subcategory image file
+                parentCategory:
+                  type: string
+                  format: uuid
+                  description: Parent category ID. If not provided, creates a parent category
+                displayOrder:
+                  type: integer
+                  default: 0
+                  description: Display order within the same level
+                featured:
+                  type: boolean
+                  default: false
+                  description: Whether to feature this category
+                status:
+                  type: string
+                  enum: [active, inactive]
+                  default: active
+                  description: Category status
+                metadata:
+                  type: object
+                  additionalProperties:
+                    type: string
+                  description: Additional metadata key-value pairs
       responses:
         '201':
-          description: Category created successfully
+          description: Category/subcategory created successfully
           content:
             application/json:
               schema:
                 type: object
                 properties:
                   category:
-                    $ref: '#/components/schemas/Category'
+                    oneOf:
+                      - $ref: '#/components/schemas/Category'
+                      - $ref: '#/components/schemas/CategoryWithParent'
         '400':
-          description: |
-            Bad request - validation error
-            Possible reasons:
-            - Missing required fields
-            - Category name already exists
-            - Invalid image format
+          description: Validation error
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: false
-                  error:
-                    type: string
-                    example: "This category already exists"
+                oneOf:
+                  - $ref: '#/components/responses/ValidationError'
+                  - type: object
+                    properties:
+                      msg:
+                        type: string
+                        example: "This category/subcategory name already exists"
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
-
-  /categories/{categoryId}/subcategories:
-    post:
-      tags:
-        - Category
-      summary: Add a subcategory to a category
-      security:
-        - BearerAuth: []
-      description: |
-        Admin only endpoint to add a new subcategory to an existing category.
-        Subcategory names must be unique within the category.
-      parameters:
-        - in: path
-          name: categoryId
-          required: true
-          schema:
-            type: string
-          description: ID of the parent category
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - name
-                - description
-              properties:
-                name:
-                  type: string
-                  example: "Smartphones"
-                  description: Unique name for the subcategory within the parent category
-                description:
-                  type: string
-                  example: "Mobile phones and smartphones"
-                  description: Detailed description of the subcategory
-      responses:
-        '201':
-          description: Subcategory added successfully
+        '404':
+          description: Parent category not found
           content:
             application/json:
               schema:
@@ -518,22 +543,35 @@ paths:
                 properties:
                   msg:
                     type: string
-                    example: "Subcategory added successfully"
-                  category:
-                    $ref: '#/components/schemas/Category'
-        '400':
-          description: Bad request - validation error
+                    example: "Parent category not found"
+  /categories/{id}:
+    get:
+      tags:
+        - Category
+      summary: Get detailed information about a specific category
+      description: |
+        Retrieves a single category with populated relationships:
+        - Parent category information
+        - Active subcategories (sorted by display order)
+        - Virtual fields like product count
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Successfully retrieved category
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  success:
-                    type: boolean
-                    example: false
-                  error:
-                    type: string
-                    example: "This subcategory already exists"
+                  category:
+                    $ref: '#/components/schemas/Category'
+                    description: Category with populated relationships
         '404':
           description: Category not found
           content:
@@ -541,99 +579,178 @@ paths:
               schema:
                 type: object
                 properties:
-                  success:
-                    type: boolean
-                    example: false
-                  error:
+                  msg:
                     type: string
-                    example: "No category found with id: 123"
-
- 
-  /jobs:
-    post:
+                    example: "No category found with id: {id}"
+  
+  
+    put:
       tags:
-        - Jobs
-      summary: Create Job
-      operationId: CreateJob
-      parameters: []
+        - Category
+      summary: Update category details
+      security:
+        - BearerAuth: []
+      description: |
+        Admin-only endpoint to update category information:
+        - Validates unique name constraints
+        - Auto-updates slug if name changes
+        - Preserves existing image if not updated
+        - Maintains relationships
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
       requestBody:
-        description: ''
+        required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateJobRequest'
-            example:
-              company: google
-              position: front-end developer
-        required: true
+              type: object
+              properties:
+                name:
+                  type: string
+                  minLength: 2
+                  maxLength: 50
+                description:
+                  type: string
+                  minLength: 10
+                  maxLength: 500
+                displayOrder:
+                  type: integer
+                featured:
+                  type: boolean
+                status:
+                  type: string
+                  enum: [active, inactive]
+                metadata:
+                  type: object
+                  additionalProperties:
+                    type: string
       responses:
         '200':
-          description: ''
-          headers: {}
-      deprecated: false
-    get:
-      tags:
-        - Jobs
-      summary: Get All Jobs
-      operationId: GetAllJobs
-      parameters: []
-      responses:
-        '200':
-          description: ''
-          headers: {}
-      deprecated: false
-  /jobs/{id}:
-    parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-        required: true
-        description: The job ID
-    get:
-      tags:
-        - Jobs
-      summary: Get Single Job
-      operationId: GetSingleJob
-      parameters: []
-      responses:
-        '200':
-          description: ''
-          headers: {}
-      deprecated: false
-
-    patch:
-      tags:
-        - Jobs
-      summary: Update Job
-      operationId: UpdateJob
-      parameters: []
-      requestBody:
-        description: ''
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateJobRequest'
-            example:
-              company: random
-              position: intern
-        required: true
-      responses:
-        '200':
-          description: ''
-          headers: {}
-      deprecated: false
+          description: Category updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  msg:
+                    type: string
+                    example: "Category updated successfully"
+                  category:
+                    $ref: '#/components/schemas/Category'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  msg:
+                    type: string
+                    example: "This category name already exists"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Category not found
+  
+  
     delete:
       tags:
-        - Jobs
-      summary: Delete Job
-      operationId: DeleteJob
-      parameters: []
+        - Category
+      summary: Delete a category
+      security:
+        - BearerAuth: []
+      description: |
+        Admin-only endpoint to delete a category:
+        - Removes associated cloud storage images
+        - Updates related products
+        - Handles subcategory cleanup
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
       responses:
         '200':
-          description: ''
-          headers: {}
-      deprecated: false
+          description: Category deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  msg:
+                    type: string
+                    example: "Category deleted successfully"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Category not found
+  
+  
+  /categories/{id}/update-category-image:
+    put:
+      tags:
+        - Category
+      summary: Update category image
+      security:
+        - BearerAuth: []
+      description: |
+        Admin-only endpoint to update category image:
+        - Automatically removes old image from cloud storage
+        - Validates image format and size
+        - Updates image URLs and public IDs
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - image
+              properties:
+                image:
+                  type: string
+                  format: binary
+                  description: New category image
+      responses:
+        '200':
+          description: Image updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  msg:
+                    type: string
+                    example: "Image updated successfully"
+                  category:
+                    $ref: '#/components/schemas/Category'
+        '400':
+          description: Invalid image format or upload failed
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Category not found or no file uploaded
+
 components:
   schemas:
     UserRegistration:
@@ -761,33 +878,6 @@ components:
           example: true
           description: Must be true to accept terms and conditions
 
-    SubCategory:
-      type: object
-      required:
-        - name
-        - description
-      properties:
-        _id:
-          type: string
-          example: "507f1f77bcf86cd799439011"
-          description: Auto-generated subcategory ID
-        name:
-          type: string
-          example: "Smartphones"
-          description: Name of the subcategory (unique within parent category)
-        description:
-          type: string
-          example: "Mobile phones and smartphones"
-          description: Detailed description of the subcategory
-        createdAt:
-          type: string
-          format: date-time
-          example: "2024-02-02T12:00:00Z"
-        updatedAt:
-          type: string
-          format: date-time
-          example: "2024-02-02T12:00:00Z"
-
     Category:
       type: object
       required:
@@ -797,42 +887,77 @@ components:
       properties:
         _id:
           type: string
-          example: "507f1f77bcf86cd799439011"
-          description: Auto-generated category ID
+          format: uuid
         name:
           type: string
-          example: "Electronics"
-          description: Unique name of the category
+          minLength: 2
+          maxLength: 50
         description:
           type: string
-          example: "Electronic devices and accessories"
-          description: Detailed description of the category
+          minLength: 10
+          maxLength: 500
+        slug:
+          type: string
+          description: Auto-generated SEO-friendly URL slug
         image:
           type: object
           properties:
-            public_id:
-              type: string
-              example: "categories/electronics-123"
-              description: Cloudinary public ID for the image
             url:
               type: string
               format: uri
-              example: "https://res.cloudinary.com/demo/image/upload/categories/electronics-123.jpg"
-              description: Cloudinary secure URL for the image
+        displayOrder:
+          type: integer
+          default: 0
+        featured:
+          type: boolean
+          default: false
+        status:
+          type: string
+          enum: [active, inactive]
+          default: active
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
         subcategories:
           type: array
-          description: List of subcategories belonging to this category
           items:
-            $ref: '#/components/schemas/SubCategory'
+            $ref: '#/components/schemas/CategoryWithParent'
+          example:  # Add an example here
+            - _id: "4fa85f64-5717-4562-b3fc-2c963f66afa7"
+              name: "Smartphones"
+              description: "Latest smartphones and accessories"
+              slug: "smartphones"
+              image:
+                url: "https://example.com/images/smartphones.jpg"
+              displayOrder: 1
+              featured: true
+              status: "active"
+              metadata:
+                key1: "value1"
+                key2: "value2"
+              parentCategory: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+              createdAt: "2025-02-03T11:54:13.013Z"
+              updatedAt: "2025-02-03T11:54:13.013Z"
         createdAt:
           type: string
           format: date-time
-          example: "2024-02-02T12:00:00Z"
         updatedAt:
           type: string
           format: date-time
-          example: "2024-02-02T12:00:00Z"
 
+    CategoryWithParent:
+      allOf:
+        - $ref: '#/components/schemas/Category'
+        - type: object
+          required:
+            - parentCategory
+          properties:
+            parentCategory:
+              type: string
+              format: uuid
+              description: Reference to parent category
+ 
   responses:
     Unauthorized:
       description: Authentication required
@@ -861,7 +986,39 @@ components:
               error:
                 type: string
                 example: "Not authorized to access this route" 
-  
+    ValidationError:
+      description: Request validation failed
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              msg:
+                type: string
+                example: "Please provide required fields"
+    
+    UploadError:
+      description: Image upload failed
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              msg:
+                type: string
+                example: "Failed to upload image"
+
+    DuplicateError:
+      description: Unique constraint violation
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              msg:
+                type: string
+                example: "This category already exists"
+
   securitySchemes:
     httpBearer:
       type: http
