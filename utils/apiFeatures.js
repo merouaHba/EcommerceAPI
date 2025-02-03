@@ -19,7 +19,12 @@ class APIFeatures {
                 maxLimit: options.pagination?.maxLimit || 100,
                 maxSkip: options.pagination?.maxSkip || 10000
             },
-
+            // Add cursor pagination configuration
+            cursor: {
+                enabled: options.cursor?.enabled ?? true,
+                field: options.cursor?.field || '_id',
+                encoding: options.cursor?.encoding || 'base64'
+            },
             fields: {
                 // Fields that can be searched
                 searchable: options.searchable || ['name', 'description'],
@@ -70,9 +75,14 @@ class APIFeatures {
             this.buildQuery()
             .handlePopulation()
             .handleSearch()
-                .handleSelect()
-                .handleSort()
-                .handlePagination();
+            .handleSelect()
+            .handleSort()
+            // Choose pagination method based on presence of cursor
+            if (this.req.query.cursor) {
+                this.handleCursorPagination();
+            } else {
+                this.handlePagination();
+            }
 
             return this.executeQuery();
         } catch (error) {
@@ -85,26 +95,34 @@ class APIFeatures {
             // Add timeout to prevent long-running queries
             if (!this.isAggregation) {
                 this.query = this.query.maxTimeMS(5000);
-            }else{
-                // console.log(this.query.pipeline())
+            } else {
+                console.log(this.query.pipeline())
             }
+
             const results = await this.query;
 
-            // Get total count
-            let total;
-            if (this.isAggregation) {
-               
-                // For aggregation, we need to run a separate count pipeline
-                const countPipeline = this.query.pipeline()
-                    .filter(stage => !stage.$skip && !stage.$limit); // Remove pagination stages
+            // Get next cursor
+            let nextCursor = null;
+            if (this.req.query.cursor && results.length > 0) {
+                const lastDoc = results[results.length - 1];
+                const cursorValue = lastDoc[this.config.cursor.field];
+                nextCursor = this.encodeCursor(cursorValue);
+            }
 
-                const countResult = await this.model.aggregate([
-                    ...countPipeline,
-                    { $count: 'total' }
-                ]);
-                total = countResult[0]?.total || 0;
-            } else {
-                total = await this.model.countDocuments(this.queryObj).maxTimeMS(5000);
+            // Get total count (only for offset pagination)
+            let total;
+            if (!this.req.query.cursor) {
+                if (this.isAggregation) {
+                    const countPipeline = this.query.pipeline()
+                        .filter(stage => !stage.$skip && !stage.$limit);
+                    const countResult = await this.model.aggregate([
+                        ...countPipeline,
+                        { $count: 'total' }
+                    ]);
+                    total = countResult[0]?.total || 0;
+                } else {
+                    total = await this.model.countDocuments(this.queryObj).maxTimeMS(5000);
+                }
             }
 
             const limit = Math.min(
@@ -122,6 +140,7 @@ class APIFeatures {
                 currentPage: !this.req.query.cursor ?
                     parseInt(this.req.query.page) || 1 :
                     undefined,
+                nextCursor: nextCursor,
                 data: results
             };
         } catch (error) {
@@ -145,6 +164,9 @@ class APIFeatures {
 
             // Process each query parameter
             for (const [field, value] of Object.entries(reqQuery)) {
+                // Skip processing if value is a number
+                if (typeof value === 'number') continue;
+
                 const actualField = this.pathMappings[field] || field;
 
                 // Check if this field needs a lookup
@@ -309,11 +331,11 @@ class APIFeatures {
         let fields = new Set(this.config.fields.required);
 
         if (this.req.query.select) {
+
             const requestedFields = this.sanitizeString(this.req.query.select)
                 .split(',')
                 .map(field => field.trim())
                 .filter(field => this.isValidFieldName(field));
-
             if (this.config.fields.selectable.includes('*')) {
                 requestedFields.forEach(field => fields.add(field));
             } else {
@@ -326,9 +348,20 @@ class APIFeatures {
                 const modelFields = Object.keys(this.model.schema.paths);
                 modelFields
                     .filter(field => !this.config.fields.excluded.includes(field))
-                    .forEach(field => fields.add(field));
+                    .forEach(field => {
+                        // Remove parent paths of populated fields when select is undefined
+                        if (!this.config.population?.default?.some(pop => pop.path === field)) {
+                            fields.add(field);
+                        }
+                    });
             } else {
-                this.config.fields.selectable.forEach(field => fields.add(field));
+                
+                this.config.fields.selectable.forEach(field => {
+                    // Remove parent paths of populated fields when select is undefined
+                    if (!this.config.population?.default?.some(pop => pop.path === field)) {
+                        fields.add(field);
+                    }
+                });
             }
         }
 
@@ -414,6 +447,92 @@ class APIFeatures {
         }
 
         return this;
+    }
+    handleCursorPagination() {
+        if (!this.config.cursor.enabled) {
+            throw new CustomError.BadRequestError('Cursor pagination is not enabled');
+        }
+
+        const cursor = this.decodeCursor(this.req.query.cursor);
+        const limit = Math.min(
+            parseInt(this.req.query.limit) || this.config.pagination.defaultLimit,
+            this.config.pagination.maxLimit
+        );
+
+        // Build the cursor query
+        const cursorQuery = {};
+        if (cursor) {
+            const sortOrder = this.getSortOrder();
+            const operator = sortOrder[this.config.cursor.field] === 1 ? '$gt' : '$lt';
+            cursorQuery[this.config.cursor.field] = { [operator]: cursor };
+        }
+
+        // Add cursor query to existing query
+        if (this.isAggregation) {
+            if (Object.keys(cursorQuery).length > 0) {
+                this.query.pipeline().push({ $match: cursorQuery });
+            }
+            this.query.pipeline().push({ $limit: limit });
+        } else {
+            if (Object.keys(cursorQuery).length > 0) {
+                this.query = this.query.where(cursorQuery);
+            }
+            this.query = this.query.limit(limit);
+        }
+
+        return this;
+    }
+
+    getSortOrder() {
+        if (this.req.query.sort) {
+            const sortParams = this.req.query.sort.split(',');
+            const sortBy = {};
+
+            sortParams.forEach(param => {
+                const [field, order] = param.split(':');
+                if (field) {
+                    sortBy[field.trim()] = order?.toLowerCase() === 'desc' ? -1 : 1;
+                }
+            });
+
+            return sortBy;
+        }
+
+        // Default sort
+        return { [this.config.cursor.field]: -1 };
+    }
+
+    encodeCursor(value) {
+        if (!value) return null;
+
+        if (this.config.cursor.encoding === 'base64') {
+            return Buffer.from(value.toString()).toString('base64');
+        }
+
+        return value.toString();
+    }
+
+    decodeCursor(cursor) {
+        if (!cursor) return null;
+
+        try {
+            if (this.config.cursor.encoding === 'base64') {
+                const decoded = Buffer.from(cursor, 'base64').toString();
+                // Handle ObjectId strings
+                if (decoded.match(/^[0-9a-fA-F]{24}$/)) {
+                    return this.model.mongoose.Types.ObjectId(decoded);
+                }
+                // Handle numbers
+                if (!isNaN(decoded)) {
+                    return Number(decoded);
+                }
+                return decoded;
+            }
+
+            return cursor;
+        } catch (error) {
+            throw new CustomError.BadRequestError('Invalid cursor');
+        }
     }
     validateFilters(filters) {
         for (const [field, conditions] of Object.entries(filters)) {
