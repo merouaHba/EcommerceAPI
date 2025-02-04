@@ -165,22 +165,21 @@ class APIFeatures {
             removeFields.forEach(param => delete reqQuery[param]);
             delete reqQuery._id;
 
+            // Process and validate filters
+            const processedQuery = this.processFilters(reqQuery);
             const objectIdFields = this.config.objectIdFields;
-            const baseQuery = this.processQueryFields(reqQuery, objectIdFields);
+            const baseQuery = this.processQueryFields(processedQuery, objectIdFields);
 
-            // Check if text search is being used
+            // Rest of the buildQuery method remains the same
             const isTextSearch = this.config.search.useTextIndex && this.req.query.search;
 
-            // Use forceAggregation setting or determine based on conditions
             if (this.config.forceAggregation || isTextSearch) {
                 this.isAggregation = true;
-                // Don't add $match stage here if using text search - it will be added in handleSearch
                 const pipeline = !isTextSearch && Object.keys(baseQuery).length > 0
                     ? [{ $match: baseQuery }]
                     : [];
                 this.query = this.model.aggregate(pipeline);
             } else {
-                // Original logic for determining query type
                 const pipeline = Object.keys(baseQuery).length > 0
                     ? [{ $match: baseQuery }]
                     : [];
@@ -198,6 +197,110 @@ class APIFeatures {
             return this;
         } catch (error) {
             throw new CustomError.BadRequestError(`Query building failed: ${error.message}`);
+        }
+    }
+
+    processFilters(reqQuery) {
+        const processedQuery = {};
+
+        for (const [field, value] of Object.entries(reqQuery)) {
+            try {
+                // Skip special query parameters
+                if (['select', 'sort', 'page', 'limit', 'search', 'cursor'].includes(field)) {
+                    continue;
+                }
+
+                // Handle the field mapping and validation
+                const mappedFields = this.resolveFieldMapping(field, value);
+
+                for (const { mappedField, filterValue } of mappedFields) {
+                    if (mappedField) {
+                        // Validate the filter operation
+                        this.validateFilterOperation(mappedField, filterValue);
+                        processedQuery[mappedField] = filterValue;
+                    }
+                }
+            } catch (error) {
+                throw new CustomError.BadRequestError(`Invalid filter for field '${field}': ${error.message}`);
+            }
+        }
+
+        return processedQuery;
+    }
+
+    resolveFieldMapping(field, value) {
+        const mappedFields = [];
+
+        // Handle dot notation fields directly
+        if (field.includes('.')) {
+            mappedFields.push({
+                mappedField: field,
+                filterValue: this.parseQueryValue(value)
+            });
+            return mappedFields;
+        }
+
+        // Check if there's a lookup config for this field
+        const lookupField = `${field}.name`;
+        if (this.config.lookupConfig && this.config.lookupConfig[lookupField]) {
+            // If the field is in objectIdFields, handle both the ID and lookup field
+            if (this.config.objectIdFields?.includes(field)) {
+                // Try to convert the value to ObjectId for direct field
+                try {
+                    const objectIdValue = new mongoose.Types.ObjectId(value);
+                    mappedFields.push({
+                        mappedField: field,
+                        filterValue: objectIdValue
+                    });
+                } catch (error) {
+                    // If value is not an ObjectId, use the lookup field
+                    mappedFields.push({
+                        mappedField: lookupField,
+                        filterValue: this.parseQueryValue(value)
+                    });
+                }
+            } else {
+                // If not an objectIdField, just use the lookup field
+                mappedFields.push({
+                    mappedField: lookupField,
+                    filterValue: this.parseQueryValue(value)
+                });
+            }
+        } else if (this.isValidFieldName(field)) {
+            // Handle regular fields
+            mappedFields.push({
+                mappedField: field,
+                filterValue: this.parseQueryValue(value)
+            });
+        }
+
+        return mappedFields;
+    }
+
+    validateFilterOperation(field, value) {
+        // Get the base field name (without nested path)
+        const baseField = field.split('.')[0];
+
+        // Get allowed operations for this field
+        const allowedOps = this.config.filters.allowed[field] ||[];
+
+        if (allowedOps.length === 0) {
+            throw new Error(`Filtering not allowed for field: ${field}`);
+        }
+
+        // If value is an object (has operators)
+        if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+            for (const op of Object.keys(value)) {
+                const cleanOp = op.replace('$', '');
+                if (!allowedOps.includes(cleanOp)) {
+                    throw new Error(`Operation '${cleanOp}' not allowed on field: ${field}`);
+                }
+            }
+        } else {
+            // For direct value comparison, check if 'eq' is allowed
+            if (!allowedOps.includes('eq')) {
+                throw new Error(`Equals comparison not allowed on field: ${field}`);
+            }
         }
     }
 
@@ -563,25 +666,6 @@ class APIFeatures {
             throw new CustomError.BadRequestError('Invalid cursor');
         }
     }
-    validateFilters(filters) {
-        for (const [field, conditions] of Object.entries(filters)) {
-            const baseField = field.split('.').pop();
-            const allowedOps = this.config.filters?.allowed?.[field] ||
-                this.config.filters?.allowed?.[baseField] ||
-                [];
-
-            if (typeof conditions === 'object' && conditions !== null) {
-                for (const op of Object.keys(conditions)) {
-                    const cleanOp = op.replace('$', '');
-                    if (!allowedOps.includes(cleanOp)) {
-                        throw new CustomError.BadRequestError(
-                            `Operation '${cleanOp}' not allowed on field: ${field}`
-                        );
-                    }
-                }
-            }
-        }
-    }
 
     handlePopulation() {
         try {
@@ -930,6 +1014,12 @@ const productFeatures = {
         isOutOfStock: ['eq'],
         isLowStock: ['eq'],
         allowBackorders: ['eq'],
+        
+        
+        'category': ['eq', 'in'],
+        'category.name': ['eq', 'in'],
+        'subcategory': ['eq', 'in'],
+        'subcategory.name': ['eq', 'in'],
 
 
         // Rating filters
