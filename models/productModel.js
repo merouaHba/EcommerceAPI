@@ -254,8 +254,18 @@ const ProductSchema = new mongoose.Schema({
 }, {
     timestamps: true,
     toJSON: {
-        virtuals: true, getters: true, versionKey: false, transform: function (doc, ret) {
+        virtuals: true,
+        getters: true,
+        versionKey: false,
+
+        transform: function (doc, ret) {
             delete ret.id;
+            if (ret.images) {
+                ret.images = ret.images.map(img => {
+                    const { id,_id, ...rest } = img;
+                    return rest;
+                });
+            }
             return ret;
         }
     },
