@@ -694,9 +694,116 @@ const bulkUpdateProducts = async (req, res) => {
 };
 
 
+const getProductStats = async (req, res) => {
+    const { period = 'monthly', year, month } = req.query;
+    const seller = req.user._id;
+
+    const matchStage = { seller: new mongoose.Types.ObjectId(seller) };
+    const now = new Date();
+    const currentYear = year || now.getFullYear();
+
+    switch (period) {
+        case 'daily':
+            const currentMonth = month || (now.getMonth() + 1);
+            matchStage.createdAt = {
+                $gte: new Date(currentYear, currentMonth - 1, 1),
+                $lt: new Date(currentYear, currentMonth, 0)
+            };
+            groupStage = {
+                $group: {
+                    _id: { $dayOfMonth: "$createdAt" },
+                    count: { $sum: 1 },
+                    revenue: { $sum: { $multiply: ["$sold", "$basePrice"] } },
+                    averagePrice: { $avg: "$basePrice" }
+                }
+            };
+            break;
+
+        case 'monthly':
+            matchStage.createdAt = {
+                $gte: new Date(currentYear, 0, 1),
+                $lt: new Date(currentYear + 1, 0, 1)
+            };
+            groupStage = {
+                $group: {
+                    _id: { $month: "$createdAt" },
+                    count: { $sum: 1 },
+                    revenue: { $sum: { $multiply: ["$sold", "$basePrice"] } },
+                    averagePrice: { $avg: "$basePrice" }
+                }
+            };
+            break;
+
+        case 'yearly':
+            groupStage = {
+                $group: {
+                    _id: { $year: "$createdAt" },
+                    count: { $sum: 1 },
+                    revenue: { $sum: { $multiply: ["$sold", "$basePrice"] } },
+                    averagePrice: { $avg: "$basePrice" }
+                }
+            };
+            break;
+    }
+
+    const stats = await Product.aggregate([
+        { $match:  matchStage },
+        groupStage,
+        { $sort: { _id: 1 } },
+        {
+            $project: {
+                _id: 0,
+                period: "$_id",
+                count: 1,
+                revenue: { $round: ["$revenue", 2] },
+                averagePrice: { $round: ["$averagePrice", 2] }
+            }
+        }
+    ]);
+
+    res.status(StatusCodes.OK).json({ stats });
+};
+
+const getCategoryStats = async (req, res) => {
+    const seller = req.user._id;
+
+    const stats = await Product.aggregate([
+        { $match: { seller: new mongoose.Types.ObjectId(seller) } },
+        {
+            $group: {
+                _id: "$category",
+                count: { $sum: 1 },
+                revenue: { $sum: { $multiply: ["$sold", "$basePrice"] } },
+                averagePrice: { $avg: "$basePrice" }
+            }
+        },
+        {
+            $lookup: {
+                from: "categories",
+                localField: "_id",
+                foreignField: "_id",
+                as: "category"
+            }
+        },
+        { $unwind: "$category" },
+        {
+            $project: {
+                _id: 0,
+                category: "$category.name",
+                count: 1,
+                revenue: { $round: ["$revenue", 2] },
+                averagePrice: { $round: ["$averagePrice", 2] }
+            }
+        }
+    ]);
+
+    res.status(StatusCodes.OK).json({ stats });
+};
+
+
 module.exports = {
     createProduct,//💯
-    getAllProducts,//💯
+    getAllProducts,//💯 add filters category, subcategory
     getSingleProduct,//💯
     getSellerDashboardStats,//💯
     getSellerProducts,//💯
@@ -713,5 +820,7 @@ module.exports = {
     getProductsByPriceRange,
     getRecentProducts,
     getProductsStockAlert,
-    bulkUpdateProducts
+    bulkUpdateProducts,
+    getProductStats, // add orders to revenue calculation
+    getCategoryStats // add orders to revenue calculation
 };

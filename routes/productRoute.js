@@ -18,7 +18,10 @@ const {
     getProductsByPriceRange,
     getRecentProducts,
     getProductsStockAlert,
-    bulkUpdateProducts } = require('../controllers/productController')
+    bulkUpdateProducts,
+    getProductStats,
+    getCategoryStats
+ } = require('../controllers/productController')
 const router = express.Router()
 const { authenticateUser, authorizePermissions } = require('../middlewares/authentication')
 const { singleFile, anyMulter } = require('../utils/multer')
@@ -37,6 +40,22 @@ router.get(
     authorizePermissions('admin', 'seller'),
     getSellerDashboardStats
 );
+
+// Get product stats
+router.get(
+    '/stats',
+    authenticateUser,
+    authorizePermissions('seller', 'admin'),
+    getProductStats
+);
+
+router.get(
+    '/stats/categories',
+    authenticateUser,
+    authorizePermissions('seller', 'admin'),
+    getCategoryStats
+);
+
 // Get seller's products with optional filters
 router.get(
     '/seller/:id?',
