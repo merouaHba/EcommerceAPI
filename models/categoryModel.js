@@ -141,7 +141,11 @@ CategorySchema.methods.findSimilarCategories = async function () {
 // Text indexes for search
 CategorySchema.index({
     name: 'text',
-    description: 'text'
+    description: 'text',
+    shortDescription: 'text',
+    'subcategory.name': 'text',
+    slug: 'text',
+
 }, {
     weights: {
         name: 10,
