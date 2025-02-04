@@ -1556,6 +1556,104 @@ paths:
                     type: string
                     example: "Invalid update data."
 
+  /products/stats:
+    get:
+      tags:
+        - Product
+      summary: Get time-based product statistics
+      description: Returns product statistics grouped by daily, monthly, or yearly periods
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: period
+          schema:
+            type: string
+            enum: [daily, monthly, yearly]
+          description: Time period for grouping statistics
+          default: monthly
+        - in: query
+          name: year
+          schema:
+            type: integer
+          description: Year for filtering statistics (defaults to current year)
+        - in: query
+          name: month
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 12
+          description: Month for filtering daily statistics (required for daily period)
+      responses:
+        200:
+          description: Successfully retrieved time-based statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  stats:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        period:
+                          type: number
+                          description: Time period (day/month/year)
+                        count:
+                          type: number
+                          description: Number of products
+                        revenue:
+                          type: number
+                          description: Total revenue for the period
+                        averagePrice:
+                          type: number
+                          description: Average product price for the period
+        401:
+          $ref: '#/components/responses/UnauthorizedError'
+        403:
+          $ref: '#/components/responses/ForbiddenError'
+
+  /products/stats/categories:
+    get:
+      tags:
+        - Product
+      summary: Get category-based product statistics
+      description: Returns product statistics grouped by categories
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Successfully retrieved category-based statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  stats:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        category:
+                          type: string
+                          description: Category name
+                        count:
+                          type: number
+                          description: Number of products in category
+                        revenue:
+                          type: number
+                          description: Total revenue for the category
+                        averagePrice:
+                          type: number
+                          description: Average product price in category
+        401:
+          $ref: '#/components/responses/UnauthorizedError'
+        403:
+          $ref: '#/components/responses/ForbiddenError'
+
+
+
   /reviews:
     post:
       tags:
