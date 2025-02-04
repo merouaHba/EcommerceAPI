@@ -250,7 +250,29 @@ const ProductSchema = new mongoose.Schema({
     ratingsQuantity: {
         type: Number,
         default: 0,
-    }
+    },
+    ratingDistribution: {
+        oneStar: {
+            type: Number,
+            default: 0
+        },
+        twoStars: {
+            type: Number,
+            default: 0
+        },
+        threeStars: {
+            type: Number,
+            default: 0
+        },
+        fourStars: {
+            type: Number,
+            default: 0
+        },
+        fiveStars: {
+            type: Number,
+            default: 0
+        }
+    },
 }, {
     timestamps: true,
     toJSON: {
