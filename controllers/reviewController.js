@@ -1,88 +1,212 @@
 const Review = require('../models/reviewModel');
 const Product = require('../models/productModel');
+const mongoose = require('mongoose');
 const { StatusCodes } = require('http-status-codes');
-const {
-    checkPermissions
-} = require('../utils');
-
+const { checkPermissions } = require('../utils');
 const CustomError = require('../errors');
 const validateMongoDbId = require('../utils/validateMongodbId');
 
 const createReview = async (req, res) => {
-    const { comment, rating, id, userId } = req.body;
-    validateMongoDbId(id)
-    const product = await Product.findOne({ _id: id })
-    if (!product) {
-        throw new CustomError.NotFoundError("No product found")
+    const { comment, rating, productId } = req.body;
+    const userId = req.user._id
+    validateMongoDbId(productId);
+    if (!comment && !rating) { 
+        throw new CustomError.BadRequestError('Please provide comment or rating');
     }
-    validateMongoDbId(userId)
-    const review = await Review.create({ review:comment,rating,user:userId,product:id})
-    res.status(StatusCodes.CREATED).json({msg:'review added successfully', review})
-}
-const getReviewsByProduct = async (req, res) => {
-    const { productId: id } = req.params;
-    validateMongoDbId(id)
-    const reviews = await Review.find({product: id }).populate('user').select('firstname lastname profilePicture');
-    if (reviews.length === 0) {
-    throw new CustomError.NotFoundError('no reviews found');
-}
-    res.status(StatusCodes.OK).json({reviews})
-}
-const getReview = async (req, res) => {
-    const { id } = req.params;
-    validateMongoDbId(id)
-    const review = await Review.findOne({_id:id}).populate('user').select('firstname lastname profilePicture').exec();
-    if (!review) {
-        throw new CustomError.NotFoundError('no review found');
-    }
-    res.status(StatusCodes.OK).json({ review })
-}
-const updateReview = async (req, res) => {
-    const { id } = req.params;
 
-    const { comment, rating, userId, role } = req.body;
-    const reviewExists = await Review.findOne({ _id: id });
-    checkPermissions(reviewExists.user,userId,role);
-    if (!comment || !rating ) {
-        throw new CustomError.NotFoundError('no data found');
-}
-    validateMongoDbId(id)
-    const review = await Review.findOneAndUpdate({ _id: id }, req.body, {
-        new: true,
-        runValidators: true,
+    const product = await Product.findById(productId);
+    if (!product) {
+        throw new CustomError.NotFoundError('Product not found');
+    }
+
+    const existingReview = await Review.findOne({
+        product: productId,
+        user: userId
     });
 
-    
-    if (!review) {
-        throw new CustomError.NotFoundError('no review found');
+    if (existingReview) {
+        throw new CustomError.BadRequestError('You have already reviewed this product');
     }
-    // checkPermissions(review.user, userId, role)
-    res.status(StatusCodes.OK).json({msg:"review updated successfully", review })
-}
+
+    const review = await Review.create({
+        review: comment,
+        rating,
+        user: userId,
+        product: productId
+    });
+
+    res.status(StatusCodes.CREATED).json({
+        msg: 'Review added successfully',
+        review
+    });
+};
+
+const getReviewsByProduct = async (req, res) => {
+    const { productId } = req.params;
+    const { sort = '-createdAt', page = 1, limit = 10 } = req.query;
+
+    validateMongoDbId(productId);
+    const product = await Product.findById(productId)
+    if (!product) {
+        throw new CustomError.NotFoundError('No Product found');
+    }
+    const skip = (page - 1) * limit;
+
+    const reviews = await Review.find({ product: productId })
+        .populate('user', 'firstname lastname profilePicture.url')
+        .sort(sort)
+        .skip(skip)
+        .limit(limit);
+
+    const total = await Review.countDocuments({ product: productId });
+    
+
+    res.status(StatusCodes.OK).json({
+        reviews,
+        currentPage: page,
+        totalPages: Math.ceil(total / limit),
+        total
+    });
+};
+
+const getReviewStats = async (req, res) => {
+    const { productId } = req.params;
+    validateMongoDbId(productId);
+
+    const stats = await Review.aggregate([
+        {
+            $match: { product: new mongoose.Types.ObjectId(productId.toString()) }
+        },
+        {
+            $group: {
+                _id: null,
+                avgRating: { $avg: '$rating' },
+                totalReviews: { $sum: 1 },
+                ratingDistribution: {
+                    $push: '$rating'
+                }
+            }
+        }
+    ]);
+
+    if (!stats.length) {
+        throw new CustomError.NotFoundError('No review statistics found');
+    }
+
+    res.status(StatusCodes.OK).json({ stats: stats[0] });
+};
+
+const getUserReviews = async (req, res) => {
+    const { userId } = req.params;
+    const { role } = req.user;
+
+    if (role === 'seller') {
+        const reviews = await Review.aggregate([
+            {
+                $lookup: {
+                    from: 'products', 
+                    localField: 'product',
+                    foreignField: '_id',
+                    as: 'productDetails'
+                }
+            },
+            {
+                $unwind: '$productDetails'
+            },
+            {
+                $match: {
+                    'productDetails.seller': new mongoose.Types.ObjectId(req.user._id.toString()),
+                }
+            },
+            {
+                $project: {
+                    _id: 1,
+                    rating: 1,
+                    comment: 1,
+                    createdAt: 1,
+                    product: {
+                        name: '$productDetails.name',
+                        price: '$productDetails.price',
+                        mainImage: '$productDetails.mainImage.url'
+                    }
+                }
+            }
+        ]);
+
+        return res.status(StatusCodes.OK).json({ reviews });
+    }
+    validateMongoDbId(userId);
+
+    const reviews = await Review.find({ user: userId })
+        .populate('product', 'name price mainImage.url');
+
+    if (!reviews.length) {
+        throw new CustomError.NotFoundError('No reviews found for this user');
+    }
+
+    res.status(StatusCodes.OK).json({ reviews });
+};
+const getMyReviews = async (req, res) => {
+    const reviews = await Review.find({ user: req.user._id })
+        .populate('product', 'name price mainImage.url');
+
+    res.status(StatusCodes.OK).json({ reviews });
+};
+const updateReview = async (req, res) => {
+    const { id } = req.params;
+    const { comment, rating } = req.body;
+    const { _id:userId, role } = req.user;
+
+    validateMongoDbId(id);
+
+    const review = await Review.findById(id);
+    if (!review) {
+        throw new CustomError.NotFoundError('Review not found');
+    }
+
+    checkPermissions(review.user, userId, role);
+
+    if (!comment && !rating) {
+        throw new CustomError.BadRequestError('Please provide update data');
+    }
+
+    if (comment) review.review = comment;
+    if (rating) review.rating = rating;
+
+    await review.save();
+
+    res.status(StatusCodes.OK).json({
+        msg: 'Review updated successfully',
+        review
+    });
+};
+
 const deleteReview = async (req, res) => {
     const { id } = req.params;
-    const { userId, role } = req.body;
+    const { _id:userId, role } = req.user;
 
-    const reviewExists = await Review.findOne({ _id: id });
-    checkPermissions(reviewExists.user, userId, role);
-    validateMongoDbId(id)
-    const review = await Review.findOneAndDelete({ _id: id });
+    validateMongoDbId(id);
 
-
+    const review = await Review.findById(id);
     if (!review) {
-        throw new CustomError.NotFoundError('no review found');
+        throw new CustomError.NotFoundError('Review not found');
     }
-    res.status(StatusCodes.OK).json({msg:"review deleted successfully"})
-}
 
+    checkPermissions(review.user, userId, role);
 
+    await Review.findByIdAndDelete(id);
 
-
+    res.status(StatusCodes.OK).json({
+        msg: 'Review deleted successfully'
+    });
+};
 
 module.exports = {
     createReview,
     getReviewsByProduct,
-    getReview,
     updateReview,
-    deleteReview
-}
+    deleteReview,
+    getReviewStats,
+    getUserReviews,
+    getMyReviews
+};
