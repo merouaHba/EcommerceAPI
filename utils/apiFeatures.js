@@ -1,10 +1,10 @@
 const CustomError = require('../errors');
+const mongoose = require('mongoose');
 
 class APIFeatures {
     constructor(req, model, options = {}) {
         this.req = req;
         this.model = model;
-        this.pathMappings = options.pathMappings || {};
         // Configure lookup settings for populated fields
         this.lookupConfig = options.lookupConfig || {
             // Default format:
@@ -62,7 +62,11 @@ class APIFeatures {
             population: {
                 default: options?.population?.default || [],
                 maxDepth: options?.population?.maxDepth || 2
-            }
+            },
+
+            // ObjectId fields for query processing
+            objectIdFields: options.objectIdFields || [],
+            forceAggregation: options.forceAggregation || false
         };
 
         this.query = null;
@@ -73,10 +77,10 @@ class APIFeatures {
     async execute() {
         try {
             this.buildQuery()
-            .handlePopulation()
-            .handleSearch()
-            .handleSelect()
-            .handleSort()
+                .handlePopulation()
+                .handleSearch()
+                .handleSelect()
+                .handleSort()
             // Choose pagination method based on presence of cursor
             if (this.req.query.cursor) {
                 this.handleCursorPagination();
@@ -97,6 +101,8 @@ class APIFeatures {
                 this.query = this.query.maxTimeMS(5000);
             } else {
                 console.log(this.query.pipeline())
+                console.log(this.query.pipeline()[7]?.$match?.$or)
+                console.log(this.query.pipeline()[0].$match)
             }
 
             const results = await this.query;
@@ -151,6 +157,7 @@ class APIFeatures {
         }
     }
 
+
     buildQuery() {
         try {
             const reqQuery = this.sanitizeQueryParams({ ...this.req.query });
@@ -158,84 +165,85 @@ class APIFeatures {
             removeFields.forEach(param => delete reqQuery[param]);
             delete reqQuery._id;
 
-            const baseQuery = {};
-            const pipeline = [];
-            const processedLookups = new Set();
+            const objectIdFields = this.config.objectIdFields;
+            const baseQuery = this.processQueryFields(reqQuery, objectIdFields);
 
-            // Process each query parameter
-            for (const [field, value] of Object.entries(reqQuery)) {
-                // Skip processing if value is a number
-                if (typeof value === 'number') continue;
+            // Check if text search is being used
+            const isTextSearch = this.config.search.useTextIndex && this.req.query.search;
 
-                const actualField = this.pathMappings[field] || field;
+            // Use forceAggregation setting or determine based on conditions
+            if (this.config.forceAggregation || isTextSearch) {
+                this.isAggregation = true;
+                // Don't add $match stage here if using text search - it will be added in handleSearch
+                const pipeline = !isTextSearch && Object.keys(baseQuery).length > 0
+                    ? [{ $match: baseQuery }]
+                    : [];
+                this.query = this.model.aggregate(pipeline);
+            } else {
+                // Original logic for determining query type
+                const pipeline = Object.keys(baseQuery).length > 0
+                    ? [{ $match: baseQuery }]
+                    : [];
 
-                // Check if this field needs a lookup
-                const lookupNeeded = Object.keys(this.lookupConfig)
-                    .find(pattern => actualField.startsWith(pattern));
-
-                if (lookupNeeded && !processedLookups.has(lookupNeeded)) {
-                    // Handle lookup field
-                    const lookupSettings = this.lookupConfig[lookupNeeded];
-                    const lookupAlias = `_${lookupSettings.localField}`;
-
-                    // Add lookup stage
-                    pipeline.push({
-                        $lookup: {
-                            from: lookupSettings.from,
-                            localField: lookupSettings.localField,
-                            foreignField: lookupSettings.foreignField,
-                            as: lookupAlias
-                        }
-                    });
-
-                    // Add match stage for the lookup field
-                    const fieldPath = actualField.split('.').slice(1).join('.');
-                    const matchValue = this.parseQueryValue(value);
-
-                    pipeline.push({
-                        $match: {
-                            [`${lookupAlias}.${fieldPath}`]: matchValue
-                        }
-                    });
-
-                    processedLookups.add(lookupNeeded);
-                } else if (!lookupNeeded) {
-                    // Handle regular field
-                    baseQuery[actualField] = this.parseQueryValue(value);
+                if (pipeline.length > 0) {
+                    this.query = this.model.aggregate(pipeline);
+                    this.isAggregation = true;
+                } else {
+                    this.query = this.model.find(baseQuery);
+                    this.isAggregation = false;
                 }
             }
 
-            // Add remaining filters to pipeline if any exist
-            if (Object.keys(baseQuery).length > 0) {
-                pipeline.push({ $match: baseQuery });
-            }
-
-            // Clean up lookup fields if we used any
-            if (processedLookups.size > 0) {
-                const projectStage = { $project: {} };
-                processedLookups.forEach(lookup => {
-                    const lookupSettings = this.lookupConfig[lookup];
-                    projectStage.$project[`_${lookupSettings.localField}`] = 0;
-                });
-                pipeline.push(projectStage);
-            }
-
-            // Determine whether to use aggregation or find
-            if (pipeline.length > 0) {
-                this.query = this.model.aggregate(pipeline);
-                this.isAggregation = true;
-            } else {
-                this.query = this.model.find(baseQuery);
-                this.isAggregation = false;
-            }
-
             this.queryObj = baseQuery;
-
             return this;
         } catch (error) {
             throw new CustomError.BadRequestError(`Query building failed: ${error.message}`);
         }
     }
+
+    convertToObjectId(value) {
+        // Check if value is already an ObjectId
+        if (value instanceof mongoose.Types.ObjectId) return value;
+
+        try {
+            return new mongoose.Types.ObjectId(value.toString());
+        } catch (error) {
+            return value;
+        }
+    }
+
+    processQueryFields(query, objectIdFields = []) {
+    const processedQuery = { ...query };
+
+    for (const [field, value] of Object.entries(processedQuery)) {
+        // Convert to ObjectId if the field is in objectIdFields list
+        if (objectIdFields.includes(field)) {
+            processedQuery[field] = this.convertToObjectId(value);
+        }
+        // Convert numeric strings to numbers
+        else if (typeof value === 'string' && !isNaN(value) && value.trim() !== '') {
+            processedQuery[field] = Number(value);
+        }
+        // Handle object conditions (like {gte: '100'})
+        else if (typeof value === 'object' && value !== null) {
+            Object.keys(value).forEach(key => {
+                if (typeof value[key] === 'string' && !isNaN(value[key]) && value[key].trim() !== '') {
+                    // Convert string to number
+                    value[key] = Number(value[key]);
+
+                    // Add the $ prefix to the key
+                    const newKey = `$${key}`;
+
+                    // Update the object with the new key and delete the old key
+                    value[newKey] = value[key];
+                    delete value[key];
+                }
+            });
+        }
+    }
+
+    return processedQuery;
+}
 
     parseQueryValue(value) {
         if (typeof value === 'string' && value.includes(',')) {
@@ -287,25 +295,44 @@ class APIFeatures {
         if (this.req.query.search) {
             const searchTerm = this.sanitizeString(this.req.query.search);
             const searchFields = this.config.fields.searchable;
-
+            console.log(this.config.search.useTextIndex)
             if (this.config.search.useTextIndex) {
-                if (this.isAggregation) {
-                    this.query.pipeline().push({
-                        $match: {
-                            $text: {
-                                $search: searchTerm,
-                                $caseSensitive: this.config.search.caseSensitive
-                            }
+                // For text index search
+                const textSearchStage = {
+                    $match: {
+                        $text: {
+                            $search: searchTerm,
+                            $caseSensitive: this.config.search.caseSensitive
                         }
-                    });
+                    }
+                };
+
+                if (this.isAggregation) {
+                    // Get current pipeline
+                    const currentPipeline = this.query.pipeline();
+
+                    // Remove any existing $match stages that might interfere
+                    const nonMatchStages = currentPipeline.filter(stage => !stage.$match);
+
+                    // Create new pipeline with text search as first stage
+                    const newPipeline = [textSearchStage, ...nonMatchStages];
+
+                    // Reset the pipeline
+                    this.query = this.model.aggregate(newPipeline);
                 } else {
-                    this.queryObj.$text = {
-                        $search: searchTerm,
-                        $caseSensitive: this.config.search.caseSensitive
-                    };
-                    this.query = this.model.find(this.queryObj);
+                    // Convert to aggregation pipeline for text search
+                    this.isAggregation = true;
+                    const pipeline = [
+                        textSearchStage,
+                        // Add any existing query conditions
+                        ...(Object.keys(this.queryObj).length > 0 ? [{
+                            $match: this.queryObj
+                        }] : [])
+                    ];
+                    this.query = this.model.aggregate(pipeline);
                 }
             } else {
+                // For regex search
                 const searchConditions = searchFields.map(field => ({
                     [field]: {
                         $regex: this.config.search.fuzzySearch ?
@@ -328,6 +355,7 @@ class APIFeatures {
     }
 
     handleSelect() {
+        
         let fields = new Set(this.config.fields.required);
 
         if (this.req.query.select) {
@@ -355,7 +383,7 @@ class APIFeatures {
                         }
                     });
             } else {
-                
+
                 this.config.fields.selectable.forEach(field => {
                     // Remove parent paths of populated fields when select is undefined
                     if (!this.config.population?.default?.some(pop => pop.path === field)) {
@@ -382,14 +410,15 @@ class APIFeatures {
                 fieldProjection[field] = 1;
             }
         });
-
         if (this.isAggregation) {
+            console.log("fieldProjection",fieldProjection)
             // For aggregation, add a $project stage
             this.query.pipeline().push({
                 $project: fieldProjection
             });
         } else {
             // For regular queries, use select
+            console.log("fields", fields)
             this.query = this.query.select(Array.from(fields).join(' '));
         }
 
@@ -690,15 +719,12 @@ const createAPIFeatures = (modelConfig) => {
 
 
 const categoryFeatures = {
-    pathMappings: {
-        subcategory: 'subcategories.name',
-    },
     // Enhanced searchable fields
     searchable: [
         'name',
         'description',
+        'shortDescription',
         'slug',
-        'metadata',
         'subcategories.name',
     ],
 
@@ -737,11 +763,11 @@ const categoryFeatures = {
     required: ['_id', 'name'],
 
     // Search configuration
-    search: {
-        useTextIndex: true,
+
+        useTextIndex: false,
         fuzzySearch: true,
-        caseSensitive: false
-    },
+        caseSensitive: false,
+
 
     // Enhanced filter operations
     filters: {
@@ -752,7 +778,7 @@ const categoryFeatures = {
         featured: ['eq'],
         displayOrder: ['eq', 'gt', 'gte', 'lt', 'lte'],
 
-        'subcategories.name': ['eq', 'ne', 'regex', 'in', 'nin'],
+        // 'subcategories.name': ['eq', 'ne', 'regex', 'in', 'nin'],
         // Parent category filters
         parentCategory: ['eq'],
 
@@ -782,7 +808,7 @@ const categoryFeatures = {
                 match: { status: 'active' },  // Only get active subcategories
                 options: { sort: { displayOrder: 1 } },  // Sort subcategories by displayOrder
                 pathfrom: 'categories',
-                isVirtual: true 
+                isVirtual: true
             }
 
         ],
@@ -803,13 +829,7 @@ const categoryAPIFeatures = createAPIFeatures(categoryFeatures);
 
 
 const productFeatures = {
-    pathMappings : {
-            // Direct mappings for simple filters
-            category: 'category.name',
-        subcategory: 'category.subcategories.name',
-            brand: 'brand',
-            seller: 'seller.storeName',
-    },
+  
     // Fields that can be searched using text search or regex
     searchable: [
         'name',
@@ -818,7 +838,7 @@ const productFeatures = {
         'brand',
         'status',
         'category.name',
-        'category.subcategories.name'
+        'subcategory.name'
     ],
 
     // Fields that can be used for sorting
@@ -844,9 +864,9 @@ const productFeatures = {
         'images.url',
         'description',
         'shortDescription',
-        /* 'category',
+        'category',
         'subcategory',
-        'seller', */
+        'seller',
         'brand',
         'inventoryManagement',
         'quantity',
@@ -887,7 +907,7 @@ const productFeatures = {
     required: ['_id', 'name', 'basePrice', 'status'],
 
     // Search configuration
-    useTextIndex: true,
+    useTextIndex: false,
     fuzzySearch: true,
     caseSensitive: false,
 
@@ -896,7 +916,7 @@ const productFeatures = {
         // Basic product details
         name: ['eq', 'ne', 'regex'],
         slug: ['eq', 'ne'],
-        brand: ['eq', 'ne', 'in', 'nin'],
+        brand: ['eq', 'ne', 'in', 'nin', 'regex'],
         status: ['eq', 'ne', 'in'],
 
         // Pricing filters
@@ -911,17 +931,11 @@ const productFeatures = {
         isLowStock: ['eq'],
         allowBackorders: ['eq'],
 
-        // Category and seller filters
-        'category.name': ['eq', 'in'],
-        'category.subcategories.name': ['eq', 'in'],
-        'seller.firstname': ['eq', 'in'],
-        'seller.lastname': ['eq', 'in'],
-        'seller.storeName': ['eq', 'in'],
 
         // Rating filters
         ratingsAverage: ['gt', 'gte', 'lt', 'lte', 'between'],
         ratingsQuantity: ['gt', 'gte', 'lt', 'lte'],
-        
+
         // Product type filters
         isDigital: ['eq'],
         hasVariations: ['eq'],
@@ -936,8 +950,23 @@ const productFeatures = {
     // Population configuration
     population: {
         default: [
-            { path: 'category', select: 'name subcategories' , pathfrom : 'categories' },
-            { path: 'seller', select: 'firstname lastname storeName profilePicture' ,pathfrom:'users'}
+            {
+                path: 'category',
+                select: 'name',
+                pathfrom: 'Category',
+                match: { status: 'active' }, // Add status filter
+            },
+            {
+                path: 'subcategory',
+                select: 'name',
+                pathfrom: 'Category',
+                match: { status: 'active' },// Add status filter
+            },
+            {
+                path: 'seller',
+                select: 'firstname lastname storeName profilePicture',
+                pathfrom: 'User'
+            }
         ],
         maxDepth: 2
     },
@@ -949,15 +978,17 @@ const productFeatures = {
         },
         'subcategory.name': {
             from: 'categories',
-            localField: 'category',
+            localField: 'subcategory',
             foreignField: '_id'
         },
         'seller.storeName': {
             from: 'users',
             localField: 'seller',
             foreignField: '_id'
-        },
+        }
     },
+    objectIdFields: ['category', 'subcategory', 'seller'],
+    forceAggregation: true,
     // Pagination configuration
     pagination: {
         defaultLimit: 24,
@@ -970,12 +1001,8 @@ const productAPIFeatures = createAPIFeatures(productFeatures);
 
 
 const sellerProductFeatures = {
-    pathMappings: {
-        category: 'category.name',
-        subcategory: 'subcategory.name'
-    },
+    
 
-    // Searchable fields for seller products
     searchable: [
         'name',
         'description',
@@ -986,7 +1013,6 @@ const sellerProductFeatures = {
         'subcategory.name'
     ],
 
-    // Sortable fields
     sortable: [
         'name',
         'basePrice',
@@ -998,8 +1024,8 @@ const sellerProductFeatures = {
         'status'
     ],
 
-    // Selectable fields
     selectable: [
+        '_id',
         'name',
         'slug',
         'basePrice',
@@ -1019,82 +1045,62 @@ const sellerProductFeatures = {
         'updatedAt'
     ],
 
-    // Excluded fields
     excluded: ['__v', 'metadata'],
 
-    // Required fields
     required: ['_id', 'name', 'status', 'stockStatus'],
 
-    // Search configuration
     search: {
-        useTextIndex: true,
+        useTextIndex: false,
         fuzzySearch: true,
         caseSensitive: false
     },
 
-    // Filter configuration
     filters: {
-        // Basic product details
         name: ['eq', 'ne', 'regex'],
         sku: ['eq', 'ne', 'in'],
         brand: ['eq', 'ne', 'in'],
         status: ['eq', 'ne', 'in'],
         stockStatus: ['eq', 'ne', 'in'],
-
-        // Pricing filters
         basePrice: ['eq', 'ne', 'gt', 'gte', 'lt', 'lte'],
         salePrice: ['eq', 'ne', 'gt', 'gte', 'lt', 'lte'],
-
-        // Inventory filters
         quantity: ['eq', 'ne', 'gt', 'gte', 'lt', 'lte'],
         sold: ['gt', 'gte', 'lt', 'lte'],
-
-        // Category filters
         'category.name': ['eq', 'in'],
-        'category.subcategories.name': ['eq', 'in'],
-
-        // Date filters
+        'subcategory.name': ['eq', 'in'],
+        seller: ['eq', 'in'],
         createdAt: ['gt', 'gte', 'lt', 'lte'],
         updatedAt: ['gt', 'gte', 'lt', 'lte']
     },
 
-    // Lookup configuration for populated fields
     lookupConfig: {
         'category.name': {
             from: 'categories',
             localField: 'category',
             foreignField: '_id'
         },
-        'category.subcategories.name': {  // Updated lookup config
+        'subcategory.name': {
             from: 'categories',
-            localField: 'category',
-            foreignField: '_id'
-        },
-        'seller.storeName': {
-            from: 'users',
-            localField: 'seller',
+            localField: 'subcategory',
             foreignField: '_id'
         }
     },
-
-    // population configuration
+    objectIdFields: ['seller'],
     population: {
         default: [
             {
                 path: 'category',
-                select: 'name subcategories',  // Include subcategories in selection
+                select: 'name',
                 pathfrom: 'categories'
             },
             {
-                path: 'seller',
-                select: 'firstname lastname storeName profilePicture',
-                pathfrom: 'users'
+                path: 'subcategory',
+                select: 'name',
+                pathfrom: 'categories',
             }
         ],
         maxDepth: 2
     },
 
-    // Pagination configuration
     pagination: {
         defaultLimit: 20,
         maxLimit: 50,
