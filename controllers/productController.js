@@ -175,7 +175,7 @@ const getSingleProduct = async (req, res) => {
         })
         .populate({
             path: 'seller',
-            select: 'firstname lastname storeName profilePicture'
+            select: 'firstname lastname storeName profilePicture.url'
         })
         .lean();
 
@@ -192,7 +192,7 @@ async function findRelatedProducts(categoryId, currentProductId) {
         status: 'active'
     })
         .limit(4)
-        .select('name mainImage basePrice')
+        .select('name mainImage.url basePrice')
         .lean();
 }
 
