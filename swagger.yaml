@@ -751,6 +751,322 @@ paths:
         '404':
           description: Category not found or no file uploaded
 
+  /reviews:
+    post:
+      tags:
+        - Review
+      summary: Create a new product review
+      description: |
+        Allows authenticated users to create a review for a product
+        - One review per user per product
+        - Requires comment or rating
+        - Authenticated user route
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - productId
+              properties:
+                comment:
+                  type: string
+                  maxLength: 1000
+                rating:
+                  type: number
+                  minimum: 1
+                  maximum: 5
+                productId:
+                  type: string
+                  format: uuid
+      responses:
+        '201':
+          description: Review created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  msg:
+                    type: string
+                  review:
+                    $ref: '#/components/schemas/Review'
+        '400':
+          description: Validation error
+        '404':
+          description: Product not found
+
+  /reviews/{id}:
+    put:
+      tags:
+        - Review
+      summary: Update an existing review
+      description: |
+        Allows user to update their own review
+        - Can update comment or rating
+        - User can only update their own reviews
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                comment:
+                  type: string
+                  maxLength: 1000
+                rating:
+                  type: number
+                  minimum: 1
+                  maximum: 5
+      responses:
+        '200':
+          description: Review updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  msg:
+                    type: string
+                  review:
+                    $ref: '#/components/schemas/Review'
+        '400':
+          description: Validation error
+        '403':
+          description: Not authorized to update this review
+        '404':
+          description: Review not found
+
+    delete:
+      tags:
+        - Review
+      summary: Delete a review
+      description: |
+        Allows user to delete their own review
+        - User can only delete their own reviews
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Review deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  msg:
+                    type: string
+        '403':
+          description: Not authorized to delete this review
+        '404':
+          description: Review not found
+
+  /reviews/{productId}:
+    get:
+      tags:
+        - Review
+      summary: Get reviews for a specific product
+      description: |
+        Retrieves paginated reviews for a specific product
+        - Supports sorting and pagination
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: sort
+          in: query
+          schema:
+            type: string
+            default: '-createdAt'
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: Successfully retrieved reviews
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  reviews:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Review'
+                  currentPage:
+                    type: integer
+                  totalPages:
+                    type: integer
+                  total:
+                    type: integer
+        '404':
+          description: Product not found
+
+  /reviews/stats/{productId}:
+    get:
+      tags:
+        - Review
+      summary: Get review statistics for a product
+      description: |
+        Retrieves aggregate review statistics including:
+        - Average rating
+        - Total number of reviews
+        - Rating distribution
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Successfully retrieved review statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  stats:
+                    type: object
+                    properties:
+                      avgRating:
+                        type: number
+                      totalReviews:
+                        type: integer
+                      ratingDistribution:
+                        type: array
+        '404':
+          description: No reviews found for product
+
+  /reviews/my-reviews:
+    get:
+      tags:
+        - Review
+      summary: Get user's own reviews
+      description: |
+        Retrieves all reviews created by the authenticated user
+        - Includes basic product information
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Successfully retrieved user reviews
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  reviews:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Review'
+
+  /reviews/user/{userId}:
+    get:
+      tags:
+        - Review
+      summary: Get reviews for a specific user
+      description: |
+        Retrieves reviews for a specific user
+        - Seller can view reviews of their product reviews (userId not required)
+        - Admin can view all user reviews
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Successfully retrieved user reviews
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  reviews:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Review'
+        '404':
+          description: No reviews found for user
+  /subscribe:
+    post:
+      tags:
+        - Newsletter
+      summary: Subscribe to newsletter
+      description: |
+        Adds an email address to the newsletter subscriber list
+        - Requires valid email address
+        - Utilizes MailChimp for subscriber management
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+                  description: Email address to subscribe
+      responses:
+        '201':
+          description: Successfully subscribed to newsletter
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Subscriber added successfully"
+        '400':
+          description: Invalid email or subscription failed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Please Provide a valid email address"
 components:
   schemas:
     UserRegistration:
@@ -957,7 +1273,47 @@ components:
               type: string
               format: uuid
               description: Reference to parent category
- 
+    Review:
+      type: object
+      properties:
+        _id:
+          type: string
+          format: uuid
+        review:
+          type: string
+          maxLength: 1000
+        rating:
+          type: number
+          minimum: 1
+          maximum: 5
+        product:
+          type: string
+          format: uuid
+        user:
+          type: object
+          properties:
+            firstname:
+              type: string
+            lastname:
+              type: string
+            profilePicture:
+              type: object
+              properties:
+                url:
+                  type: string
+        helpful:
+          type: array
+          items:
+            type: string
+            format: uuid
+        reported:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
   responses:
     Unauthorized:
       description: Authentication required
@@ -1018,7 +1374,7 @@ components:
               msg:
                 type: string
                 example: "This category already exists"
-
+    
   securitySchemes:
     httpBearer:
       type: http
@@ -1043,5 +1399,7 @@ tags:
   - name: Product
     description: ''
   - name: Review
+    description: ''
+  - name: Newsletter
     description: ''
 
