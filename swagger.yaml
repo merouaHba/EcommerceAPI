@@ -751,6 +751,811 @@ paths:
         '404':
           description: Category not found or no file uploaded
 
+  /products/:
+    get:
+      tags:
+        - Product
+      summary: Get all products
+      description: Retrieve a paginated list of all products with filtering, sorting, and searching capabilities.
+      parameters:
+        - name: page
+          in: query
+          description: Page number for pagination.
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          description: Number of items per page.
+          schema:
+            type: integer
+            default: 24
+            maximum: 100
+        - name: sort
+          in: query
+          description: Sorting criteria (e.g., `-createdAt` for descending order by creation date).
+          schema:
+            type: string
+        - name: search
+          in: query
+          description: Search term for filtering products by name, description, or brand.
+          schema:
+            type: string
+        - name: filter
+          in: query
+          description: Filter products by specific fields (e.g., `category`, `stockStatus`, `priceRange`).
+          schema:
+            type: object
+      responses:
+        '200':
+          description: Successfully retrieved products.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  count:
+                    type: integer
+                    description: Number of products in the current page.
+                  total:
+                    type: integer
+                    description: Total number of products matching the query.
+                  pages:
+                    type: integer
+                    description: Total number of pages.
+                  currentPage:
+                    type: integer
+                    description: Current page number.
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Product'
+        '400':
+          description: Invalid query parameters.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Invalid filter parameters."
+
+    post:
+      tags:
+        - Product
+      summary: Create a new product
+      description: Create a new product. Requires seller or admin authentication.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  description: Name of the product.
+                basePrice:
+                  type: number
+                  description: Base price of the product.
+                description:
+                  type: string
+                  description: Detailed description of the product.
+                category:
+                  type: string
+                  description: ID of the product category.
+                subcategory:
+                  type: string
+                  description: ID of the product subcategory.
+                mainImage:
+                  type: string
+                  format: binary
+                  description: Main image of the product.
+                images:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                  description: Additional images of the product.
+      responses:
+        '201':
+          description: Product created successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '400':
+          description: Invalid input data.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Please provide all required fields."
+
+  /products/search:
+    get:
+      tags:
+        - Product
+      summary: Search products
+      description: Search for products by name, description, or brand.
+      parameters:
+        - name: query
+          in: query
+          required: true
+          description: Search query.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Search results.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Product'
+        '400':
+          description: Invalid search query.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Search query is required."
+
+  /products/category/{categoryId}:
+    get:
+      tags:
+        - Product
+      summary: Get products by category
+      description: Retrieve products belonging to a specific category.
+      parameters:
+        - name: categoryId
+          in: path
+          required: true
+          description: ID of the category.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successfully retrieved products.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Product'
+        '404':
+          description: Category not found.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Category not found."
+
+  /products/{id}:
+    get:
+      tags:
+        - Product
+      summary: Get a single product
+      description: Retrieve detailed information about a specific product by its ID.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID of the product.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successfully retrieved product.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '404':
+          description: Product not found.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Product not found."
+
+    put:
+      tags:
+        - Product
+      summary: Update a product
+      description: Update an existing product. Requires seller or admin authentication.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID of the product.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductUpdate'
+      responses:
+        '200':
+          description: Product updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '400':
+          description: Invalid input data.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Invalid product data."
+
+    delete:
+      tags:
+        - Product
+      summary: Delete a product
+      description: Delete a product. Requires seller or admin authentication.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID of the product.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Product deleted successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Product deleted successfully."
+        '404':
+          description: Product not found.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Product not found."
+
+  /products/{id}/main-image:
+    put:
+      tags:
+        - Product
+      summary: Update product main image
+      description: Update the main image of a product. Requires seller or admin authentication.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID of the product.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                image:
+                  type: string
+                  format: binary
+                  description: New main image file.
+      responses:
+        '200':
+          description: Main image updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '400':
+          description: Invalid image file.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Invalid image file."
+
+  /products/{id}/images:
+    put:
+      tags:
+        - Product
+      summary: Update product images
+      description: Update all images of a product. Requires seller or admin authentication.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID of the product.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                images:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                  description: Array of new image files.
+      responses:
+        '200':
+          description: Product images updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '400':
+          description: Invalid image files.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Invalid image files."
+
+  /products/seller/dashboard:
+    get:
+      tags:
+        - Product
+      summary: Get seller dashboard stats
+      description: Retrieve statistics for the seller's dashboard. Requires seller or admin authentication.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Successfully retrieved dashboard stats.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  stats:
+                    type: object
+                    properties:
+                      totalProducts:
+                        type: integer
+                      activeProducts:
+                        type: integer
+                      outOfStockProducts:
+                        type: integer
+                      lowStockProducts:
+                        type: integer
+                      draftProducts:
+                        type: integer
+                      totalSold:
+                        type: integer
+                      totalRevenue:
+                        type: number
+                      averageRating:
+                        type: number
+                      topSellingProducts:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Product'
+                      inventorySummary:
+                        type: object
+                        properties:
+                          totalQuantity:
+                            type: integer
+                          totalReserved:
+                            type: integer
+                          totalBackorders:
+                            type: integer
+        '401':
+          description: Unauthorized access.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Unauthorized access."
+
+  
+  /products/seller/{id}:
+    get:
+      tags:
+        - Product
+      summary: Get seller's products
+      description: Retrieve products belonging to a specific seller. Requires seller or admin authentication.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: false
+          description: ID of the seller. If not provided, uses the authenticated user's ID.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successfully retrieved seller's products.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Product'
+        '401':
+          description: Unauthorized access.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Unauthorized access."
+
+  /products/{id}/status:
+    put:
+      tags:
+        - Product
+      summary: Update product status
+      description: Update the status of a product. Requires seller or admin authentication.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID of the product.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [draft, active, inactive, deleted]
+                  description: New status of the product.
+      responses:
+        '200':
+          description: Product status updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '400':
+          description: Invalid status value.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Invalid status value."
+
+  /products/{id}/inventory:
+    put:
+      tags:
+        - Product
+      summary: Update product inventory
+      description: Update the inventory details of a product. Requires seller or admin authentication.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID of the product.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                quantity:
+                  type: number
+                  description: Updated quantity of the product.
+                lowStockThreshold:
+                  type: number
+                  description: Updated low stock threshold.
+                allowBackorders:
+                  type: boolean
+                  description: Whether backorders are allowed.
+                backorderLimit:
+                  type: number
+                  description: Updated backorder limit.
+      responses:
+        '200':
+          description: Inventory updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '400':
+          description: Invalid inventory data.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Invalid inventory data."
+
+  /products/cheapest:
+    get:
+      tags:
+        - Product
+      summary: Get top cheapest products
+      description: Retrieve the cheapest products.
+      parameters:
+        - name: limit
+          in: query
+          description: Number of products to retrieve.
+          schema:
+            type: integer
+            default: 10
+        - name: category
+          in: query
+          description: Filter by category ID.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successfully retrieved cheapest products.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Product'
+        '400':
+          description: Invalid query parameters.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Invalid category ID."
+
+  /products/featured:
+    get:
+      tags:
+        - Product
+      summary: Get featured products
+      description: Retrieve featured products with high ratings and sales.
+      responses:
+        '200':
+          description: Successfully retrieved featured products.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Product'
+        '400':
+          description: Invalid query parameters.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Invalid query parameters."
+
+  /products/price-range:
+    get:
+      tags:
+        - Product
+      summary: Get products by price range
+      description: Retrieve products within a specified price range.
+      parameters:
+        - name: minPrice
+          in: query
+          description: Minimum price.
+          schema:
+            type: number
+        - name: maxPrice
+          in: query
+          description: Maximum price.
+          schema:
+            type: number
+      responses:
+        '200':
+          description: Successfully retrieved products.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Product'
+        '400':
+          description: Invalid price range.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Invalid price range."
+
+  /products/recent:
+    get:
+      tags:
+        - Product
+      summary: Get recently added products
+      description: Retrieve recently added products.
+      parameters:
+        - name: days
+          in: query
+          description: Number of days to look back.
+          schema:
+            type: integer
+            default: 7
+        - name: limit
+          in: query
+          description: Number of products to retrieve.
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: Successfully retrieved recent products.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Product'
+        '400':
+          description: Invalid query parameters.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Invalid query parameters."
+
+  /products/stock-alert:
+    get:
+      tags:
+        - Product
+      summary: Get products stock alert
+      description: Retrieve products with low stock or out-of-stock status for the seller. Requires seller or admin authentication.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Successfully retrieved stock alert products.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Product'
+        '401':
+          description: Unauthorized access.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Unauthorized access."
+
+  /products/bulk-update:
+    put:
+      tags:
+        - Product
+      summary: Bulk update products
+      description: Update multiple products in bulk. Requires seller or admin authentication.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                updates:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      productId:
+                        type: string
+                        description: ID of the product to update.
+                      updateData:
+                        type: object
+                        description: Fields to update for the product.
+      responses:
+        '200':
+          description: Products updated successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        productId:
+                          type: string
+                        success:
+                          type: boolean
+                        product:
+                          $ref: '#/components/schemas/Product'
+        '400':
+          description: Invalid update data.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Invalid update data."
+
   /reviews:
     post:
       tags:
@@ -1024,6 +1829,7 @@ paths:
                       $ref: '#/components/schemas/Review'
         '404':
           description: No reviews found for user
+  
   /subscribe:
     post:
       tags:
@@ -1273,6 +2079,339 @@ components:
               type: string
               format: uuid
               description: Reference to parent category
+    
+    
+    Product:
+      type: object
+      properties:
+        # Basic Product Information
+        _id:
+          type: string
+        name:
+          type: string
+        slug:
+          type: string
+        description:
+          type: string
+        shortDescription:
+          type: string
+        brand:
+          type: string
+
+        # Pricing
+        basePrice:
+          type: number
+        salePrice:
+          type: number
+        saleStartDate:
+          type: string
+          format: date
+        saleEndDate:
+          type: string
+          format: date
+        taxRate:
+          type: number
+
+        # Category and Seller
+        category:
+          type: string
+        subcategory:
+          type: string
+        seller:
+          type: string
+
+        # Images
+        mainImage:
+          type: object
+          properties:
+            public_id:
+              type: string
+            url:
+              type: string
+        images:
+          type: array
+          items:
+            type: object
+            properties:
+              public_id:
+                type: string
+              url:
+                type: string
+
+        # Inventory Management
+        inventoryManagement:
+          type: string
+          enum: [simple, variation]
+        quantity:
+          type: number
+        lowStockThreshold:
+          type: number
+        isOutOfStock:
+          type: boolean
+        isLowStock:
+          type: boolean
+        allowBackorders:
+          type: boolean
+        backorderLimit:
+          type: number
+        backorderCount:
+          type: number
+        reservedQuantity:
+          type: number
+        sold:
+          type: number
+        stockStatus:
+          type: string
+          enum: [in_stock, out_of_stock, low_stock, backorder]
+        restockDate:
+          type: string
+          format: date
+
+        # Product Variations
+        attributes:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              values:
+                type: array
+                items:
+                  type: string
+        variations:
+          type: array
+          items:
+            type: object
+            properties:
+              attributes:
+                type: object
+                additionalProperties:
+                  type: string
+              sku:
+                type: string
+              price:
+                type: number
+              quantity:
+                type: number
+              images:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    public_id:
+                      type: string
+                    url:
+                      type: string
+
+        # Shipping Information
+        shippingOptions:
+          type: array
+          items:
+            type: object
+            properties:
+              method:
+                type: string
+                enum: [standard, express, overnight]
+              price:
+                type: number
+              deliveryTime:
+                type: object
+                properties:
+                  min:
+                    type: number
+                  max:
+                    type: number
+              applicableRegions:
+                type: array
+                items:
+                  type: string
+        shippingWeight:
+          type: number
+        dimensions:
+          type: object
+          properties:
+            length:
+              type: number
+            width:
+              type: number
+            height:
+              type: number
+            unit:
+              type: string
+              enum: [cm, in]
+
+        # Digital Product
+        isDigital:
+          type: boolean
+        digitalDownloadInfo:
+          type: object
+          properties:
+            downloadLink:
+              type: string
+            expiryDays:
+              type: number
+
+        # Product Status
+        status:
+          type: string
+          enum: [draft, active, inactive, deleted]
+
+        # Ratings
+        ratingsAverage:
+          type: number
+        ratingsQuantity:
+          type: number
+        ratingDistribution:
+          type: object
+          properties:
+            oneStar:
+              type: number
+            twoStars:
+              type: number
+            threeStars:
+              type: number
+            fourStars:
+              type: number
+            fiveStars:
+              type: number
+
+        # Metadata
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+
+    ProductUpdate:
+      type: object
+      properties:
+        # Basic Product Information
+        name:
+          type: string
+        description:
+          type: string
+        shortDescription:
+          type: string
+        brand:
+          type: string
+
+        # Pricing
+        basePrice:
+          type: number
+        salePrice:
+          type: number
+        saleStartDate:
+          type: string
+          format: date
+        saleEndDate:
+          type: string
+          format: date
+        taxRate:
+          type: number
+
+        # Categorization
+        category:
+          type: string
+        subcategory:
+          type: string
+
+        # Inventory Management
+        quantity:
+          type: number
+        lowStockThreshold:
+          type: number
+        allowBackorders:
+          type: boolean
+        backorderLimit:
+          type: number
+
+        # Product Variations
+        attributes:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              values:
+                type: array
+                items:
+                  type: string
+        variations:
+          type: array
+          items:
+            type: object
+            properties:
+              attributes:
+                type: object
+                additionalProperties:
+                  type: string
+              sku:
+                type: string
+              price:
+                type: number
+              quantity:
+                type: number
+
+        # Shipping
+        shippingOptions:
+          type: array
+          items:
+            type: object
+            properties:
+              method:
+                type: string
+                enum: [standard, express, overnight]
+              price:
+                type: number
+              deliveryTime:
+                type: object
+                properties:
+                  min:
+                    type: number
+                  max:
+                    type: number
+              applicableRegions:
+                type: array
+                items:
+                  type: string
+        shippingWeight:
+          type: number
+        dimensions:
+          type: object
+          properties:
+            length:
+              type: number
+            width:
+              type: number
+            height:
+              type: number
+            unit:
+              type: string
+              enum: [cm, in]
+
+        # Digital Product
+        isDigital:
+          type: boolean
+        digitalDownloadInfo:
+          type: object
+          properties:
+            downloadLink:
+              type: string
+            expiryDays:
+              type: number
+
+        # Product Status
+        status:
+          type: string
+          enum: [draft, active, inactive, deleted]
+
+        # Metadata
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+
     Review:
       type: object
       properties:
