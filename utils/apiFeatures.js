@@ -1355,7 +1355,7 @@ const userFeatures = {
         lastname: ['eq', 'ne', 'regex'],
         email: ['eq', 'ne'],
         mobile: ['eq', 'ne'],
-        role: ['eq', 'in'],
+        role: ['eq', 'in','nin'],
         isBlocked: ['eq'],
         storeName: ['eq', 'ne', 'regex'],
 
