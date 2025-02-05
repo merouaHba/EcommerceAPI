@@ -35,7 +35,7 @@ router.get("/category/:categoryId", getProductsByCategory)
 
 // Seller dashboard route
 router.get(
-    '/seller/dashboard',
+    '/seller/dashboard/:sellerId?',
     authenticateUser,
     authorizePermissions('admin', 'seller'),
     getSellerDashboardStats
@@ -43,14 +43,14 @@ router.get(
 
 // Get product stats
 router.get(
-    '/stats',
+    '/stats/:sellerId?',
     authenticateUser,
     authorizePermissions('seller', 'admin'),
     getProductStats
 );
 
 router.get(
-    '/stats/categories',
+    '/stats/categories/:sellerId?',
     authenticateUser,
     authorizePermissions('seller', 'admin'),
     getCategoryStats
@@ -79,8 +79,8 @@ router.get('/cheapest', getTopSheapestProducts);
 router.get('/featured', getFeaturedProducts);
 router.get('/price-range', getProductsByPriceRange);
 router.get('/recent', getRecentProducts);
-router.get('/stock-alert', authenticateUser, authorizePermissions('seller', 'admin'), getProductsStockAlert);
-router.put('/bulk-update', authenticateUser, authorizePermissions('seller', 'admin'), bulkUpdateProducts);
+router.get('/stock-alert/:sellerId?', authenticateUser, authorizePermissions('seller', 'admin'), getProductsStockAlert);
+router.put('/bulk-update/:sellerId?', authenticateUser, authorizePermissions('seller', 'admin'), bulkUpdateProducts);
 
 router.get("/:id", getSingleProduct)
 
@@ -92,7 +92,7 @@ router.put(
 );
 
 router.delete(
-    '/:id',
+    '/:id/:sellerId?',
     authenticateUser,
     authorizePermissions('seller', 'admin'),
     deleteProduct

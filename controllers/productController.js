@@ -197,32 +197,10 @@ async function findRelatedProducts(categoryId, currentProductId) {
 }
 
 // Get seller dashboard stats
-// const getSellerDashboardStats = async (req, res) => {
-//     const seller = req.user._id;
 
-//     const [
-//         activeProducts,
-//         outOfStockProducts,
-//         lowStockProducts,
-//         draftProducts
-//     ] = await Promise.all([
-//         Product.countDocuments({ seller, status: 'active' }),
-//         Product.countDocuments({ seller, stockStatus: 'out_of_stock' }),
-//         Product.countDocuments({ seller, stockStatus: 'low_stock' }),
-//         Product.countDocuments({ seller, status: 'draft' })
-//     ]);
-
-//     res.status(StatusCodes.OK).json({
-//         stats: {
-//             activeProducts,
-//             outOfStockProducts,
-//             lowStockProducts,
-//             draftProducts
-//         }
-//     });
-// };
 const getSellerDashboardStats = async (req, res) => {
-    const seller = req.user._id;
+    const seller =req.params.sellerId ?? req.user._id;
+    validateMongoDbId(seller);
 
     try {
         const [
@@ -315,18 +293,19 @@ const getSellerProducts = async (req, res) => {
 
 // Update product status
 const updateProductStatus = async (req, res) => {
-    const { id } = req.params;
+    const { id,sellerId } = req.params;
     const { status } = req.body;
+    const seller = sellerId ?? req.user._id;
+    validateMongoDbId(seller);
 
     validateMongoDbId(id);
-
     const product = await Product.findOne({ _id: id });
 
     if (!product) {
         throw new CustomError.NotFoundError(`No product with id: ${id}`);
     }
 
-    checkPermissions(product.seller, req.user._id, 'seller');
+    checkPermissions(product.seller, seller, 'seller');
 
     product.status = status;
     await product.save();
@@ -344,7 +323,9 @@ const updateProductStatus = async (req, res) => {
 
 // Update product inventory
 const updateProductInventory = async (req, res) => {
-    const { id } = req.params;
+    const { id ,sellerId} = req.params;
+    const seller = sellerId ?? req.user._id;
+    validateMongoDbId(seller);
     const {
         quantity,
         lowStockThreshold,
@@ -360,7 +341,7 @@ const updateProductInventory = async (req, res) => {
         throw new CustomError.NotFoundError(`No product with id: ${id}`);
     }
 
-    checkPermissions(product.seller, req.user._id, 'seller');
+    checkPermissions(product.seller, seller, 'seller');
 
     // Update inventory fields if provided
     if (quantity !== undefined) product.quantity = quantity;
@@ -383,8 +364,9 @@ const updateProductInventory = async (req, res) => {
 
 
 const updateProduct = async (req, res) => {
-    const { id: productId } = req.params;
-
+    const { id: productId, sellerId } = req.params;
+    const seller = sellerId ?? req.user._id;
+    validateMongoDbId(seller);
     validateMongoDbId(productId);
 
     const product = await Product.findById(productId);
@@ -393,7 +375,7 @@ const updateProduct = async (req, res) => {
         throw new CustomError.NotFoundError(`No product with id: ${productId}`);
     }
 
-    checkPermissions(product.seller, req.user._id, 'seller');
+    checkPermissions(product.seller, seller, 'seller');
 
     if (req.body.name) {
         req.body.slug = slugify(req.body.name);
@@ -417,8 +399,9 @@ const updateProduct = async (req, res) => {
 };
 
 const deleteProduct = async (req, res) => {
-    const { id: productId } = req.params;
-
+    const { id: productId, sellerId } = req.params;
+    const seller = sellerId ?? req.user._id;
+    validateMongoDbId(seller);
     validateMongoDbId(productId);
 
     const product = await Product.findById(productId);
@@ -427,7 +410,7 @@ const deleteProduct = async (req, res) => {
         throw new CustomError.NotFoundError(`No product with id: ${productId}`);
     }
 
-    checkPermissions(product.seller, req.user._id, 'seller');
+    checkPermissions(product.seller, seller, 'seller');
 
     // Delete cloudinary images
     await destroyFile(product.mainImage.public_id);
@@ -439,7 +422,9 @@ const deleteProduct = async (req, res) => {
 };
 
 const updateProductMainImage = async (req, res) => {
-    const { id: productId } = req.params;
+    const { id: productId, sellerId } = req.params;
+    const seller = sellerId ?? req.user._id;
+    validateMongoDbId(seller);
 
     validateMongoDbId(productId)
 
@@ -448,8 +433,8 @@ const updateProductMainImage = async (req, res) => {
     if (!productExists) {
         throw new CustomError.NotFoundError(`No product with id : ${productId}`);
     }
-    const idSeller =  req.user._id;
-    checkPermissions(productExists.seller, idSeller, 'seller')
+    
+    checkPermissions(productExists.seller, seller, 'seller')
     const product = await Product.findOne({ _id: productId });
     if (!req.file) {
         throw new CustomError.NotFoundError("No file found, please upload file")
@@ -633,7 +618,9 @@ const getRecentProducts = async (req, res) => {
 
 // Get Products Stock Alert
 const getProductsStockAlert = async (req, res) => {
-    const  seller  = req.user._id;
+    const {  sellerId } = req.params;
+    const seller = sellerId ?? req.user._id;
+    validateMongoDbId(seller);
 
     let lowStockProducts = await Product.find({
         seller,
@@ -656,7 +643,9 @@ const getProductsStockAlert = async (req, res) => {
 // Bulk Update Products
 const bulkUpdateProducts = async (req, res) => {
     const { updates } = req.body;
-
+    const {  sellerId } = req.params;
+    const seller = sellerId ?? req.user._id;
+    validateMongoDbId(seller);
     if (!Array.isArray(updates)) {
         throw new CustomError.BadRequestError('Updates must be an array');
     }
@@ -670,7 +659,7 @@ const bulkUpdateProducts = async (req, res) => {
                     return { productId, success: false, error: 'Product not found' };
                 }
 
-                checkPermissions(product.seller, req.user._id, 'seller');
+                checkPermissions(product.seller, seller, 'seller');
 
                 let updatedProduct = await Product.findByIdAndUpdate(
                     productId,
@@ -696,7 +685,9 @@ const bulkUpdateProducts = async (req, res) => {
 
 const getProductStats = async (req, res) => {
     const { period = 'monthly', year, month } = req.query;
-    const seller = req.user._id;
+    const { sellerId } = req.params;
+    const seller = sellerId ?? req.user._id;
+    validateMongoDbId(seller);
 
     const matchStage = { seller: new mongoose.Types.ObjectId(seller) };
     const now = new Date();
@@ -765,7 +756,9 @@ const getProductStats = async (req, res) => {
 };
 
 const getCategoryStats = async (req, res) => {
-    const seller = req.user._id;
+    const { sellerId } = req.params;
+    const seller = sellerId ?? req.user._id;
+    validateMongoDbId(seller);
 
     const stats = await Product.aggregate([
         { $match: { seller: new mongoose.Types.ObjectId(seller) } },
