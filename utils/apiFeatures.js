@@ -1201,11 +1201,142 @@ const sellerProductFeatures = {
 // Create the configured API features instance
 const sellerProductsAPIFeatures = createAPIFeatures(sellerProductFeatures);
 
+const userFeatures = {
+    // Fields that can be searched using text search or regex
+    searchable: [
+        'firstname',
+        'lastname',
+        'email',
+        'mobile',
+        'storeName'
+    ],
+
+    // Fields that can be used for sorting
+    sortable: [
+        'firstname',
+        'lastname',
+        'createdAt',
+        'updatedAt',
+        'balance',
+        'role',
+        'storeName'
+    ],
+
+    // Fields that can be selected in queries
+    selectable: [
+        'firstname',
+        'lastname',
+        'email',
+        'mobile',
+        'role',
+        'isBlocked',
+        'storeName',
+        'balance',
+        'profilePicture.url',
+        'address',
+        'storeDetails',
+        'isVerified',
+        'verified',
+        'termsAccepted',
+        'termsAcceptedAt',
+        'termsVersion',
+        'createdAt',
+        'updatedAt'
+    ],
+
+    // Fields to exclude from responses
+    excluded: [
+        'password',
+        'refreshToken',
+        'verificationToken',
+        'vericationTokenExpirationDate',
+        'oauth',
+        'googleId',
+        'facebookId',
+        'appleId',
+        '__v'
+    ],
+
+    // Fields that must always be returned
+    required: ['_id', 'firstname', 'lastname', 'role'],
+
+    // Search configuration
+    search: {
+        useTextIndex: true, // Using text index since UserSchema has text index on firstname and lastname
+        fuzzySearch: false,
+        caseSensitive: false
+    },
+
+    // Define allowed filter operations for each field
+    filters: {
+        // Basic user details
+        firstname: ['eq', 'ne', 'regex'],
+        lastname: ['eq', 'ne', 'regex'],
+        email: ['eq', 'ne'],
+        mobile: ['eq', 'ne'],
+        role: ['eq', 'in'],
+        isBlocked: ['eq'],
+        storeName: ['eq', 'ne', 'regex'],
+
+        // Store details filters
+        'storeDetails.country': ['eq', 'in'],
+        'storeDetails.state': ['eq', 'in'],
+        'storeDetails.city': ['eq', 'in'],
+
+        // Account status filters
+        isVerified: ['eq'],
+        termsAccepted: ['eq'],
+
+        // Balance range filters
+        balance: ['eq', 'gt', 'gte', 'lt', 'lte'],
+
+        // Date filters
+        createdAt: ['gt', 'gte', 'lt', 'lte', 'between'],
+        updatedAt: ['gt', 'gte', 'lt', 'lte', 'between'],
+        verified: ['gt', 'gte', 'lt', 'lte'],
+        termsAcceptedAt: ['gt', 'gte', 'lt', 'lte']
+    },
+
+    // Population configuration
+    population: {
+        default: [
+            {
+                path: 'cart',
+                select: 'items.product items.quantity',
+                pathfrom: 'Cart'
+            },
+            {
+                path: 'wishlist',
+                select: 'products',
+                pathfrom: 'Favourite'
+            }
+        ],
+        maxDepth: 2
+    },
+
+    // Pagination configuration
+    pagination: {
+        defaultLimit: 20,
+        maxLimit: 50,
+        maxSkip: 5000
+    },
+
+    // Cursor-based pagination configuration
+    cursor: {
+        enabled: true,
+        field: '_id',
+        encoding: 'base64'
+    }
+};
+
+// Create the configured API features instance
+const userAPIFeatures = createAPIFeatures(userFeatures);
 
 module.exports = {
     APIFeatures,
     createAPIFeatures,
     // Export the configured instance
+    userAPIFeatures,
     categoryAPIFeatures,
     productAPIFeatures,
     sellerProductsAPIFeatures
