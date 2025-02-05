@@ -118,6 +118,7 @@ const createUser = async (req, res) => {
 
 
 const getAllUsers = async (req, res) => {
+    req.query.role = { $nin:['admin']}
     const result = await userAPIFeatures(req, User);
 
     res.status(StatusCodes.OK).json({ ...result });
