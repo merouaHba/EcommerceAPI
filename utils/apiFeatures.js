@@ -15,15 +15,17 @@ class APIFeatures {
 
         this.config = {
             pagination: {
+                strategy: options.pagination?.strategy || 'auto', // 'auto', 'cursor', or 'offset'
                 defaultLimit: options.pagination?.defaultLimit || 25,
                 maxLimit: options.pagination?.maxLimit || 100,
                 maxSkip: options.pagination?.maxSkip || 10000
             },
-            // Add cursor pagination configuration
+
+            //  cursor configuration
             cursor: {
-                enabled: options.cursor?.enabled ?? true,
+                enabled: options.cursor?.enabled ?? false,
                 field: options.cursor?.field || '_id',
-                encoding: options.cursor?.encoding || 'base64'
+                encoding: options.cursor?.encoding || 'base64',
             },
             fields: {
                 // Fields that can be searched
@@ -81,8 +83,9 @@ class APIFeatures {
                 .handleSearch()
                 .handleSelect()
                 .handleSort()
-            // Choose pagination method based on presence of cursor
-            if (this.req.query.cursor) {
+            // Determine pagination strategy
+            const shouldUseCursor = this.shouldUseCursorPagination();
+            if (shouldUseCursor) {
                 this.handleCursorPagination();
             } else {
                 this.handlePagination();
@@ -93,31 +96,59 @@ class APIFeatures {
             throw new CustomError.BadRequestError(`Query execution failed: ${error.message}`);
         }
     }
+    shouldUseCursorPagination() {
+        const explicitCursorStrategy = this.config.pagination.strategy === 'cursor';
+        const hasCursor = Boolean(this.req.query.cursor);
+        const cursorEnabled = this.config.cursor.enabled;
+
+        return explicitCursorStrategy ||
+            (cursorEnabled && (hasCursor || !this.req.query.page));
+    }
+
+    buildCursorQuery(cursor) {
+        const sortOrder = this.getSortOrder();
+        const cursorQuery = {};
+
+
+            const field = this.config.cursor.field;
+            const operator =sortOrder[field] === 1 ? '$gt' : '$lt'
+
+            cursorQuery[field] = { [operator]: cursor };
+
+
+        return cursorQuery;
+    }
 
     async executeQuery() {
         try {
-            // Add timeout to prevent long-running queries
-            if (!this.isAggregation) {
-                this.query = this.query.maxTimeMS(5000);
-            } else {
-                console.log(this.query.pipeline())
-                console.log(this.query.pipeline()[7]?.$match?.$or)
-                console.log(this.query.pipeline()[0].$match)
-            }
-
             const results = await this.query;
+            console.log(results.length)
 
-            // Get next cursor
             let nextCursor = null;
-            if (this.req.query.cursor && results.length > 0) {
-                const lastDoc = results[results.length - 1];
-                const cursorValue = lastDoc[this.config.cursor.field];
-                nextCursor = this.encodeCursor(cursorValue);
+            let hasNextPage = false;
+
+            // Handle cursor pagination results
+            if (this.shouldUseCursorPagination() && results.length > 0) {
+                const limit = Math.min(
+                    parseInt(this.req.query.limit) || this.config.pagination.defaultLimit,
+                    this.config.pagination.maxLimit
+                );
+
+                // If we got more results than limit, we have a next page
+                if (results.length > limit) {
+                    // Remove the extra result used for cursor calculation
+                    results.pop();
+                    hasNextPage = true;
+
+                    // Generate next cursor from the last document
+                    const lastDoc = results[results.length - 1];
+                    nextCursor = this.generateCursor(lastDoc);
+                }
             }
 
-            // Get total count (only for offset pagination)
+            // Calculate total only for offset pagination
             let total;
-            if (!this.req.query.cursor) {
+            if (!this.shouldUseCursorPagination()) {
                 if (this.isAggregation) {
                     const countPipeline = this.query.pipeline()
                         .filter(stage => !stage.$skip && !stage.$limit);
@@ -127,7 +158,7 @@ class APIFeatures {
                     ]);
                     total = countResult[0]?.total || 0;
                 } else {
-                    total = await this.model.countDocuments(this.queryObj).maxTimeMS(5000);
+                    total = await this.model.countDocuments(this.queryObj);
                 }
             }
 
@@ -139,21 +170,16 @@ class APIFeatures {
             return {
                 success: true,
                 count: results.length,
-                total,
-                pages: !this.req.query.cursor ?
-                    Math.ceil(total / limit) :
-                    undefined,
-                currentPage: !this.req.query.cursor ?
-                    parseInt(this.req.query.page) || 1 :
-                    undefined,
-                nextCursor: nextCursor,
+                total: this.shouldUseCursorPagination() ? undefined : total,
+                pages: this.shouldUseCursorPagination() ? undefined : Math.ceil(total / limit),
+                currentPage: this.shouldUseCursorPagination() ? undefined : parseInt(this.req.query.page) || 1,
+                nextCursor: this.shouldUseCursorPagination() ? nextCursor : undefined,
+                hasNextPage: this.shouldUseCursorPagination() ? hasNextPage : undefined,
                 data: results
             };
         } catch (error) {
             console.error('Query execution error:', error);
-            throw new CustomError.BadRequestError(
-                `Query execution failed: ${error.message}`
-            );
+            throw new CustomError.BadRequestError(`Query execution failed: ${error.message}`);
         }
     }
 
@@ -161,7 +187,7 @@ class APIFeatures {
     buildQuery() {
         try {
             const reqQuery = this.sanitizeQueryParams({ ...this.req.query });
-            const removeFields = ['select', 'sort', 'page', 'limit', 'filter', 'search', 'cursor'];
+            const removeFields = ['select', 'sort', 'page', 'limit', 'filter', 'search', 'cursor', 'prevCursor'];
             removeFields.forEach(param => delete reqQuery[param]);
             delete reqQuery._id;
 
@@ -206,7 +232,7 @@ class APIFeatures {
         for (const [field, value] of Object.entries(reqQuery)) {
             try {
                 // Skip special query parameters
-                if (['select', 'sort', 'page', 'limit', 'search', 'cursor'].includes(field)) {
+                if (['select', 'sort', 'page', 'limit', 'search', 'cursor', 'prevCursor'].includes(field)) {
                     continue;
                 }
 
@@ -282,7 +308,7 @@ class APIFeatures {
         const baseField = field.split('.')[0];
 
         // Get allowed operations for this field
-        const allowedOps = this.config.filters.allowed[field] ||[];
+        const allowedOps = this.config.filters.allowed[field] || [];
 
         if (allowedOps.length === 0) {
             throw new Error(`Filtering not allowed for field: ${field}`);
@@ -316,37 +342,37 @@ class APIFeatures {
     }
 
     processQueryFields(query, objectIdFields = []) {
-    const processedQuery = { ...query };
+        const processedQuery = { ...query };
 
-    for (const [field, value] of Object.entries(processedQuery)) {
-        // Convert to ObjectId if the field is in objectIdFields list
-        if (objectIdFields.includes(field)) {
-            processedQuery[field] = this.convertToObjectId(value);
-        }
-        // Convert numeric strings to numbers
-        else if (typeof value === 'string' && !isNaN(value) && value.trim() !== '') {
-            processedQuery[field] = Number(value);
-        }
-        // Handle object conditions (like {gte: '100'})
-        else if (typeof value === 'object' && value !== null) {
-            Object.keys(value).forEach(key => {
-                if (typeof value[key] === 'string' && !isNaN(value[key]) && value[key].trim() !== '') {
-                    // Convert string to number
-                    value[key] = Number(value[key]);
+        for (const [field, value] of Object.entries(processedQuery)) {
+            // Convert to ObjectId if the field is in objectIdFields list
+            if (objectIdFields.includes(field)) {
+                processedQuery[field] = this.convertToObjectId(value);
+            }
+            // Convert numeric strings to numbers
+            else if (typeof value === 'string' && !isNaN(value) && value.trim() !== '') {
+                processedQuery[field] = Number(value);
+            }
+            // Handle object conditions (like {gte: '100'})
+            else if (typeof value === 'object' && value !== null) {
+                Object.keys(value).forEach(key => {
+                    if (typeof value[key] === 'string' && !isNaN(value[key]) && value[key].trim() !== '') {
+                        // Convert string to number
+                        value[key] = Number(value[key]);
 
-                    // Add the $ prefix to the key
-                    const newKey = `$${key}`;
+                        // Add the $ prefix to the key
+                        const newKey = `$${key}`;
 
-                    // Update the object with the new key and delete the old key
-                    value[newKey] = value[key];
-                    delete value[key];
-                }
-            });
+                        // Update the object with the new key and delete the old key
+                        value[newKey] = value[key];
+                        delete value[key];
+                    }
+                });
+            }
         }
+
+        return processedQuery;
     }
-
-    return processedQuery;
-}
 
     parseQueryValue(value) {
         if (typeof value === 'string' && value.includes(',')) {
@@ -458,7 +484,7 @@ class APIFeatures {
     }
 
     handleSelect() {
-        
+
         let fields = new Set(this.config.fields.required);
 
         if (this.req.query.select) {
@@ -514,7 +540,7 @@ class APIFeatures {
             }
         });
         if (this.isAggregation) {
-            console.log("fieldProjection",fieldProjection)
+            console.log("fieldProjection", fieldProjection)
             // For aggregation, add a $project stage
             this.query.pipeline().push({
                 $project: fieldProjection
@@ -581,39 +607,43 @@ class APIFeatures {
         return this;
     }
     handleCursorPagination() {
-        if (!this.config.cursor.enabled) {
-            throw new CustomError.BadRequestError('Cursor pagination is not enabled');
-        }
-
         const cursor = this.decodeCursor(this.req.query.cursor);
         const limit = Math.min(
             parseInt(this.req.query.limit) || this.config.pagination.defaultLimit,
             this.config.pagination.maxLimit
         );
 
-        // Build the cursor query
-        const cursorQuery = {};
-        if (cursor) {
-            const sortOrder = this.getSortOrder();
-            const operator = sortOrder[this.config.cursor.field] === 1 ? '$gt' : '$lt';
-            cursorQuery[this.config.cursor.field] = { [operator]: cursor };
-        }
 
-        // Add cursor query to existing query
-        if (this.isAggregation) {
-            if (Object.keys(cursorQuery).length > 0) {
+        if (cursor) {
+            const cursorQuery = this.buildCursorQuery(cursor);
+
+            if (this.isAggregation) {
                 this.query.pipeline().push({ $match: cursorQuery });
-            }
-            this.query.pipeline().push({ $limit: limit });
-        } else {
-            if (Object.keys(cursorQuery).length > 0) {
+            } else {
                 this.query = this.query.where(cursorQuery);
             }
-            this.query = this.query.limit(limit);
+        }
+
+        // Add sort to ensure consistent ordering
+        const sortOrder = this.getSortOrder();
+
+        if (this.isAggregation) {
+            this.query.pipeline().push({ $sort: sortOrder });
+        } else {
+            this.query = this.query.sort(sortOrder);
+        }
+
+        // Add limit (get one extra for cursor)
+        if (this.isAggregation) {
+            this.query.pipeline().push({ $limit: limit + 1 });
+        } else {
+            this.query = this.query.limit(limit + 1);
         }
 
         return this;
     }
+
+
 
     getSortOrder() {
         if (this.req.query.sort) {
@@ -634,36 +664,83 @@ class APIFeatures {
         return { [this.config.cursor.field]: -1 };
     }
 
-    encodeCursor(value) {
-        if (!value) return null;
-
-        if (this.config.cursor.encoding === 'base64') {
-            return Buffer.from(value.toString()).toString('base64');
-        }
-
-        return value.toString();
-    }
-
     decodeCursor(cursor) {
         if (!cursor) return null;
 
         try {
-            if (this.config.cursor.encoding === 'base64') {
-                const decoded = Buffer.from(cursor, 'base64').toString();
-                // Handle ObjectId strings
-                if (decoded.match(/^[0-9a-fA-F]{24}$/)) {
-                    return this.model.mongoose.Types.ObjectId(decoded);
+            const decoded = Buffer.from(cursor, 'base64').toString();
+            const values = decoded.split(',').map(value => {
+                // Enhanced parsing logic
+                if (value === '') return null;
+
+                // Try parsing as date
+                const dateValue = new Date(value);
+                if (!isNaN(dateValue.getTime())) return dateValue;
+
+                // Try parsing as ObjectId
+                try {
+                    return new mongoose.Types.ObjectId(value);
+                } catch {
+                    // If not ObjectId, return as is
+                    return isNaN(value) ? value : Number(value);
                 }
-                // Handle numbers
-                if (!isNaN(decoded)) {
-                    return Number(decoded);
-                }
-                return decoded;
+            });
+
+            // Handle compound and simple cursors
+            return values[0];
+
+        } catch (error) {
+            console.error('Cursor Decoding Error:', error);
+            throw new CustomError.BadRequestError('Invalid cursor format');
+        }
+    }
+
+    generateCursor(doc) {
+        if (!doc) return null;
+
+        const sortOrder = this.getSortOrder();
+        const cursorFields =  [this.config.cursor.field];
+
+        const values = cursorFields.map(field => {
+            const value = doc[field];
+            const isDescending = sortOrder[field] === -1;
+
+            if (value instanceof Date) {
+                return value.toISOString();
             }
 
-            return cursor;
+            // Handle potential undefined values
+            return value !== undefined ? value.toString() : '';
+        });
+
+        return this.encodeCursor(values.join(','));
+    }
+
+
+    // Helper method to check if a field is a date field
+    isDateField(field) {
+        // Check if the field exists in the schema and is of type Date
+        const schemaPath = this.model.schema.path(field);
+        return schemaPath && schemaPath.instance === 'Date';
+    }
+
+    // Also update the encodeCursor method for consistency
+    encodeCursor(value) {
+        if (!value) return null;
+
+        try {
+            if (this.config.cursor.encoding === 'base64') {
+                // Convert ObjectId to string if necessary
+                const stringValue = value instanceof mongoose.Types.ObjectId ?
+                    value.toString() :
+                    value.toString();
+
+                return Buffer.from(stringValue).toString('base64');
+            }
+
+            return value.toString();
         } catch (error) {
-            throw new CustomError.BadRequestError('Invalid cursor');
+            throw new CustomError.BadRequestError('Failed to encode cursor value');
         }
     }
 
@@ -848,9 +925,9 @@ const categoryFeatures = {
 
     // Search configuration
 
-        useTextIndex: false,
-        fuzzySearch: true,
-        caseSensitive: false,
+    useTextIndex: false,
+    fuzzySearch: true,
+    caseSensitive: false,
 
 
     // Enhanced filter operations
@@ -901,10 +978,8 @@ const categoryFeatures = {
 
     // Pagination configuration
     pagination: {
-        defaultLimit: 20,
-        maxLimit: 50,
-        maxSkip: 5000
-    }
+        strategy: 'offset',
+    },
 };
 
 
@@ -913,7 +988,7 @@ const categoryAPIFeatures = createAPIFeatures(categoryFeatures);
 
 
 const productFeatures = {
-  
+
     // Fields that can be searched using text search or regex
     searchable: [
         'name',
@@ -1014,8 +1089,8 @@ const productFeatures = {
         isOutOfStock: ['eq'],
         isLowStock: ['eq'],
         allowBackorders: ['eq'],
-        
-        
+
+
         'category': ['eq', 'in'],
         'category.name': ['eq', 'in'],
         'subcategory': ['eq', 'in'],
@@ -1081,9 +1156,11 @@ const productFeatures = {
     forceAggregation: true,
     // Pagination configuration
     pagination: {
-        defaultLimit: 24,
-        maxLimit: 100,
-        maxSkip: 10000
+        strategy: 'auto', // or 'cursor' or 'offset'
+    },
+    cursor: {
+        enabled: true,
+        field: '_id',
     }
 };
 const productAPIFeatures = createAPIFeatures(productFeatures);
@@ -1091,7 +1168,7 @@ const productAPIFeatures = createAPIFeatures(productFeatures);
 
 
 const sellerProductFeatures = {
-    
+
 
     searchable: [
         'name',
@@ -1192,9 +1269,13 @@ const sellerProductFeatures = {
     },
 
     pagination: {
+        strategy: 'offset',
         defaultLimit: 20,
         maxLimit: 50,
         maxSkip: 5000
+    },
+    cursor: {
+        enabled: false,
     }
 };
 
@@ -1302,7 +1383,7 @@ const userFeatures = {
         default: [
             {
                 path: 'cart',
-                select: 'items.product items.quantity',
+                select: 'items',
                 pathfrom: 'Cart'
             },
             {
@@ -1316,17 +1397,11 @@ const userFeatures = {
 
     // Pagination configuration
     pagination: {
+        strategy: 'offset',
         defaultLimit: 20,
         maxLimit: 50,
         maxSkip: 5000
     },
-
-    // Cursor-based pagination configuration
-    cursor: {
-        enabled: true,
-        field: '_id',
-        encoding: 'base64'
-    }
 };
 
 // Create the configured API features instance
