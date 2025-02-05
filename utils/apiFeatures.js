@@ -1118,19 +1118,19 @@ const productFeatures = {
             {
                 path: 'category',
                 select: 'name',
-                pathfrom: 'Category',
+                pathfrom: 'categories',
                 match: { status: 'active' }, // Add status filter
             },
             {
                 path: 'subcategory',
                 select: 'name',
-                pathfrom: 'Category',
+                pathfrom: 'categories',
                 match: { status: 'active' },// Add status filter
             },
             {
                 path: 'seller',
                 select: 'firstname lastname storeName profilePicture',
-                pathfrom: 'User'
+                pathfrom: 'users'
             }
         ],
         maxDepth: 2
