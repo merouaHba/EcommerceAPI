@@ -325,17 +325,31 @@ paths:
       parameters:
         - name: page
           in: query
-          description: Page number for pagination.
+          description: |
+            Page number for offset pagination.
+            - Required for offset pagination.
+            - Ignored if `cursor` is provided.
           schema:
             type: integer
             default: 1
         - name: limit
           in: query
-          description: Number of items per page.
+          description: |
+            Number of items per page.
+            - Default: 24
+            - Maximum: 100
           schema:
             type: integer
-            default: 20
-            maximum: 50
+            default: 24
+            maximum: 100
+        - name: cursor
+          in: query
+          description: |
+            Base64-encoded cursor for cursor-based pagination.
+            - Used for retrieving the next set of results.
+            - Mutually exclusive with `page` parameter.
+          schema:
+            type: string
         - name: sort
           in: query
           description: Sorting criteria (e.g., `-createdAt` for descending order by creation date).
@@ -361,18 +375,27 @@ paths:
                 properties:
                   success:
                     type: boolean
+                    example: true
                   count:
                     type: integer
-                    description: Number of users in the current page.
+                    description: Number of products in the current page.
                   total:
                     type: integer
-                    description: Total number of users matching the query.
+                    description: Total number of products matching the query.
                   pages:
                     type: integer
-                    description: Total number of pages.
+                    description: Total number of pages (for offset pagination).
                   currentPage:
                     type: integer
-                    description: Current page number.
+                    description: Current page number (for offset pagination).
+                  nextCursor:
+                    type: string
+                    description: Base64-encoded cursor for the next page (for cursor pagination).
+                    nullable: true
+                  hasNextPage:
+                    type: boolean
+                    description: Whether there are more pages (for cursor pagination).
+                    example: true
                   data:
                     type: array
                     items:
@@ -731,33 +754,31 @@ paths:
             type: string
         - name: page
           in: query
+          description: |
+            Page number for offset pagination.
+            - Required for offset pagination.
+            - Ignored if `cursor` is provided.
           schema:
             type: integer
-            minimum: 1
             default: 1
-        - name: cursor
-          in: query
-          description: |
-            Base64 encoded cursor for pagination.
-            - Used for retrieving subsequent pages of results
-            - Encoded value of the last item's `_id` from the previous request
-            - Mutually exclusive with `page` and `limit` parameters
-            - Supports forward pagination
-            - Default encoding is base64
-          schema:
-            type: string
         - name: limit
           in: query
           description: |
-            Number of items to retrieve per page.
-            - When using cursor pagination, defaults to 20
-            - Maximum value is 50
-            - Reduces the number of results returned
+            Number of items per page.
+            - Default: 24
+            - Maximum: 100
           schema:
             type: integer
-            minimum: 1
-            maximum: 50
-            default: 20
+            default: 24
+            maximum: 100
+        - name: cursor
+          in: query
+          description: |
+            Base64-encoded cursor for cursor-based pagination.
+            - Used for retrieving the next set of results.
+            - Mutually exclusive with `page` parameter.
+          schema:
+            type: string
         - name: select
           in: query
           description: |
@@ -804,21 +825,27 @@ paths:
                 properties:
                   success:
                     type: boolean
+                    example: true
                   count:
                     type: integer
-                    description: Items in current page
+                    description: Number of products in the current page.
                   total:
                     type: integer
-                    description: Total items matching query
+                    description: Total number of products matching the query.
                   pages:
                     type: integer
-                    description: Total pages
+                    description: Total number of pages (for offset pagination).
                   currentPage:
                     type: integer
+                    description: Current page number (for offset pagination).
                   nextCursor:
                     type: string
-                    description: Base64 encoded cursor for the next page of results
+                    description: Base64-encoded cursor for the next page (for cursor pagination).
                     nullable: true
+                  hasNextPage:
+                    type: boolean
+                    description: Whether there are more pages (for cursor pagination).
+                    example: true
                   data:
                     type: array
                     items:
@@ -1134,34 +1161,64 @@ paths:
       tags:
         - Product
       summary: Get all products
-      description: Retrieve a paginated list of all products with filtering, sorting, and searching capabilities.
+      description: |
+        Retrieve a paginated list of all products with filtering, sorting, and searching capabilities.
+        Supports both cursor-based and offset-based pagination.
+        - **Cursor Pagination**: Ideal for infinite scrolling and large datasets.
+        - **Offset Pagination**: Traditional page-based navigation.
+        - **Filtering**: By category, price range, stock status, etc.
+        - **Sorting**: By price, ratings, creation date, etc.
+        - **Search**: Full-text search across product names and descriptions.
       parameters:
         - name: page
           in: query
-          description: Page number for pagination.
+          description: |
+            Page number for offset pagination.
+            - Required for offset pagination.
+            - Ignored if `cursor` is provided.
           schema:
             type: integer
             default: 1
         - name: limit
           in: query
-          description: Number of items per page.
+          description: |
+            Number of items per page.
+            - Default: 24
+            - Maximum: 100
           schema:
             type: integer
             default: 24
             maximum: 100
-        - name: sort
+        - name: cursor
           in: query
-          description: Sorting criteria (e.g., `-createdAt` for descending order by creation date).
+          description: |
+            Base64-encoded cursor for cursor-based pagination.
+            - Used for retrieving the next set of results.
+            - Mutually exclusive with `page` parameter.
           schema:
             type: string
+        - name: sort
+          in: query
+          description: |
+            Sorting criteria.
+            - Use `-` for descending order (e.g., `-createdAt`).
+            - Supported fields: `name`, `basePrice`, `createdAt`, `ratingsAverage`, etc.
+          schema:
+            type: string
+            default: "-createdAt"
         - name: search
           in: query
-          description: Search term for filtering products by name, description, or brand.
+          description: |
+            Search term for filtering products by name, description, or brand.
+            - Supports partial matches.
           schema:
             type: string
         - name: filter
           in: query
-          description: Filter products by specific fields (e.g., `category`, `stockStatus`, `priceRange`).
+          description: |
+            Filter products by specific fields.
+            - Example: `category=electronics&price[gte]=100&price[lte]=500`
+            - Supported filters: `category`, `subcategory`, `price`, `stockStatus`, etc.
           schema:
             type: object
       responses:
@@ -1174,6 +1231,7 @@ paths:
                 properties:
                   success:
                     type: boolean
+                    example: true
                   count:
                     type: integer
                     description: Number of products in the current page.
@@ -1182,10 +1240,18 @@ paths:
                     description: Total number of products matching the query.
                   pages:
                     type: integer
-                    description: Total number of pages.
+                    description: Total number of pages (for offset pagination).
                   currentPage:
                     type: integer
-                    description: Current page number.
+                    description: Current page number (for offset pagination).
+                  nextCursor:
+                    type: string
+                    description: Base64-encoded cursor for the next page (for cursor pagination).
+                    nullable: true
+                  hasNextPage:
+                    type: boolean
+                    description: Whether there are more pages (for cursor pagination).
+                    example: true
                   data:
                     type: array
                     items:
