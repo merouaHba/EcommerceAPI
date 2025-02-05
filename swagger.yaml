@@ -313,6 +313,385 @@ paths:
         '302':
           description: Redirects to Facebook login
 
+
+  /users:
+    get:
+      tags:
+        - User
+      summary: Get all users
+      description: Retrieve a paginated list of all users with filtering, sorting, and searching capabilities. Requires admin authentication.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          description: Page number for pagination.
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          description: Number of items per page.
+          schema:
+            type: integer
+            default: 20
+            maximum: 50
+        - name: sort
+          in: query
+          description: Sorting criteria (e.g., `-createdAt` for descending order by creation date).
+          schema:
+            type: string
+        - name: search
+          in: query
+          description: Search term for filtering users by firstname, lastname, email, or mobile.
+          schema:
+            type: string
+        - name: filter
+          in: query
+          description: Filter users by specific fields (e.g., `role`, `isBlocked`, `storeName`).
+          schema:
+            type: object
+      responses:
+        '200':
+          description: Successfully retrieved users.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  count:
+                    type: integer
+                    description: Number of users in the current page.
+                  total:
+                    type: integer
+                    description: Total number of users matching the query.
+                  pages:
+                    type: integer
+                    description: Total number of pages.
+                  currentPage:
+                    type: integer
+                    description: Current page number.
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/User'
+        '401':
+          description: Unauthorized access.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Unauthorized access."
+
+    post:
+      tags:
+        - User
+      summary: Create a new user
+      description: Create a new user. Requires admin authentication.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                firstname:
+                  type: string
+                  description: First name of the user.
+                lastname:
+                  type: string
+                  description: Last name of the user.
+                email:
+                  type: string
+                  format: email
+                  description: Email of the user.
+                password:
+                  type: string
+                  description: Password of the user.
+                role:
+                  type: string
+                  enum: [user, admin, seller]
+                  description: Role of the user.
+                mobile:
+                  type: string
+                  description: Mobile number of the user (required for sellers).
+                storeName:
+                  type: string
+                  description: Store name of the user (required for sellers).
+                storeDetails:
+                  type: object
+                  description: Store details of the user (required for sellers).
+                  properties:
+                    street:
+                      type: string
+                    state:
+                      type: string
+                    postalCode:
+                      type: number
+                    country:
+                      type: string
+      responses:
+        '201':
+          description: User created successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  msg:
+                    type: string
+                    example: "Success! User account created"
+                  user:
+                    $ref: '#/components/schemas/User'
+        '400':
+          description: Invalid input data.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Please provide all required fields."
+
+  /users/user-info/{userId}:
+    get:
+      tags:
+          - User
+      summary: Get a single user
+      description: Retrieve detailed information about a specific user by their ID. Requires authentication.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: false
+          description: ID of the user. If not provided, retrieves the authenticated user's details.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successfully retrieved user.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+        '404':
+          description: User not found.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "User not found."
+
+  /users/{userId}:
+    put:
+      tags:
+        - User
+      summary: Update a user
+      description: Update an existing user. Requires authentication.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: false
+          description: ID of the user. If not provided, updates the authenticated user.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                firstname:
+                  type: string
+                  description: Updated first name of the user.
+                lastname:
+                  type: string
+                  description: Updated last name of the user.
+                mobile:
+                  type: string
+                  description: Updated mobile number of the user.
+                address:
+                  type: string
+                  description: Updated address of the user.
+                storeName:
+                  type: string
+                  description: Updated store name of the user (for sellers).
+                storeDetails:
+                  type: object
+                  description: Updated store details of the user (for sellers).
+      responses:
+        '200':
+          description: User updated successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+                  accessToken:
+                    type: string
+                    description: New access token for the updated user.
+        '400':
+          description: Invalid input data.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "No updated data provided."
+
+    delete:
+      tags:
+        - User
+      summary: Delete a user
+      description: Delete a user. Requires admin authentication.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: false
+          description: ID of the user. If not provided, deletes the authenticated user.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User deleted successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  msg:
+                    type: string
+                    example: "Success! User deleted"
+                  deletedUser:
+                    type: object
+                    properties:
+                      _id:
+                        type: string
+                      email:
+                        type: string
+                      role:
+                        type: string
+        '404':
+          description: User not found.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "User not found."
+
+  /users/upload-profile-image/{userId}:
+    post:
+      tags:
+        - User
+      summary: Upload profile image
+      description: Upload or update the profile image of a user. Requires authentication.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: false
+          description: ID of the user. If not provided, updates the authenticated user's profile image.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                image:
+                  type: string
+                  format: binary
+                  description: New profile image file.
+      responses:
+        '200':
+          description: Profile image uploaded successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  profilePicture:
+                    type: string
+                    description: URL of the uploaded profile image.
+        '400':
+          description: Invalid image file.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Invalid image file."
+
+  /users/delete-profile-image/{userId}:
+    delete:
+      tags:
+        - User
+      summary: Delete profile image
+      description: Delete the profile image of a user. Requires authentication.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: false
+          description: ID of the user. If not provided, deletes the authenticated user's profile image.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Profile image deleted successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  msg:
+                    type: string
+                    example: "Profile image deleted successfully"
+        '404':
+          description: No profile image found.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "No profile image found."
+
+
   /categories:
     get:
       tags:
@@ -694,8 +1073,7 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
-          description: Category not found
-  
+          description: Category not found 
   
   /categories/{id}/update-category-image:
     put:
@@ -2097,6 +2475,89 @@ components:
           type: boolean
           example: true
           description: Must be true to accept terms and conditions
+
+    User:
+      type: object
+      properties:
+        _id:
+          type: string
+          description: Unique identifier for the user.
+        firstname:
+          type: string
+          description: First name of the user.
+        lastname:
+          type: string
+          description: Last name of the user.
+        email:
+          type: string
+          format: email
+          description: Email of the user.
+        mobile:
+          type: string
+          description: Mobile number of the user.
+        profilePicture:
+          type: object
+          properties:
+            public_id:
+              type: string
+            url:
+              type: string
+          description: Profile picture of the user.
+        role:
+          type: string
+          enum: [user, admin, seller]
+          description: Role of the user.
+        isBlocked:
+          type: boolean
+          description: Whether the user is blocked.
+        storeName:
+          type: string
+          description: Store name of the user (for sellers).
+        balance:
+          type: number
+          description: Balance of the user (for sellers).
+        address:
+          type: string
+          description: Address of the user.
+        storeDetails:
+          type: object
+          properties:
+            street:
+              type: string
+            state:
+              type: string
+            city:
+              type: string
+            postalCode:
+              type: number
+            country:
+              type: string
+          description: Store details of the user (for sellers).
+        isVerified:
+          type: boolean
+          description: Whether the user is verified.
+        verified:
+          type: string
+          format: date-time
+          description: Date and time when the user was verified.
+        termsAccepted:
+          type: boolean
+          description: Whether the user accepted the terms.
+        termsAcceptedAt:
+          type: string
+          format: date-time
+          description: Date and time when the user accepted the terms.
+        termsVersion:
+          type: string
+          description: Version of the terms accepted by the user.
+        createdAt:
+          type: string
+          format: date-time
+          description: Date and time when the user was created.
+        updatedAt:
+          type: string
+          format: date-time
+          description: Date and time when the user was last updated.
 
     Category:
       type: object
