@@ -1,15 +1,78 @@
-const express = require('express')
-const { getAllDiscounts, generateDiscount, deleteDiscount ,getDiscount, verifyDiscount, updateDiscount} = require('../controllers/discountController')
-const router = express.Router()
-const { authenticateUser, authorizePermissions } = require('../middlewares/authentication')
+const express = require('express');
+const router = express.Router();
+const {
+    authenticateUser,
+    authorizePermissions,
+} = require('../middlewares/authentication');
+const validate = require('../middlewares/requestValidation');
+const {
+    getAllDiscountsValidation,
+    getDiscountValidation,
+    createDiscountValidation,
+    updateDiscountValidation,
+    deleteDiscountValidation,
+    validateDiscountValidation,
+    applyDiscountValidation,
+    getDiscountStatsValidation,
+} = require('../validations/discountValidation');
+const {
+    createDiscount,
+    updateDiscount,
+    deleteDiscount,
+    getDiscount,
+    getAllDiscounts,
+    validateDiscount,
+    applyDiscount,
+    getDiscountStats,
+} = require('../controllers/discountController');
 
-router.get('/', authenticateUser, authorizePermissions('admin'), getAllDiscounts)
-router.post('/', authenticateUser,authorizePermissions('admin'), generateDiscount)
-router.get('/discount', authenticateUser,authorizePermissions('admin'), getDiscount)
-router.put('/discount', authenticateUser,authorizePermissions('admin'), updateDiscount)
-router.get('/verify-discount', authenticateUser, verifyDiscount)
-router.delete('/', authenticateUser, authorizePermissions('admin') ,deleteDiscount)
 
 
+router.use(authenticateUser);
 
-module.exports = router
+// Public routes
+router.post('/validate',
+    validate(validateDiscountValidation),
+    validateDiscount
+);
+
+router.post('/apply',
+    validate(applyDiscountValidation),
+    applyDiscount
+);
+
+// Seller and admin routes
+router.use(authorizePermissions('seller', 'admin'));
+
+router.route('/')
+    .get(
+        validate(getAllDiscountsValidation),
+        getAllDiscounts
+    )
+    .post(
+        validate(createDiscountValidation),
+        createDiscount
+    );
+
+router.route('/:id')
+    .get(
+        validate(getDiscountValidation),
+        getDiscount
+    )
+    .put(
+        validate(updateDiscountValidation),
+        updateDiscount
+    )
+    .delete(
+        validate(deleteDiscountValidation),
+        deleteDiscount
+    );
+
+router.get('/:id/stats',
+    authorizePermissions('admin'),
+    validate(getDiscountStatsValidation),
+    getDiscountStats
+);
+
+module.exports = router;
+

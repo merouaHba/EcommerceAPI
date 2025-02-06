@@ -1165,8 +1165,6 @@ const productFeatures = {
 };
 const productAPIFeatures = createAPIFeatures(productFeatures);
 
-
-
 const sellerProductFeatures = {
 
 
@@ -1407,6 +1405,169 @@ const userFeatures = {
 // Create the configured API features instance
 const userAPIFeatures = createAPIFeatures(userFeatures);
 
+
+const discountFeatures = {
+    // Searchable fields for text search or regex
+    searchable: [
+        'name',
+        'description',
+        'code',
+        'type',
+        'sellers.storeName'
+    ],
+
+    // Fields that can be used for sorting
+    sortable: [
+        'name',
+        'code',
+        'type',
+        'value',
+        'startDate',
+        'endDate',
+        'usageCount',
+        'minPurchaseAmount',
+        'createdAt',
+        'updatedAt',
+        'timeRemaining'
+    ],
+
+    // All fields that can be selected in queries
+    selectable: [
+        'name',
+        'code',
+        'description',
+        'type',
+        'value',
+        'startDate',
+        'endDate',
+        'minPurchaseAmount',
+        'maxDiscountAmount',
+        'usageLimit',
+        'usageCount',
+        'perUserLimit',
+        'sellers',
+        'applicableProducts',
+        'excludedProducts',
+        'applicableCategories',
+        'isActive',
+        'conditions',
+        'timeRemaining',
+        'createdAt',
+        'updatedAt'
+    ],
+
+    // Fields to exclude from responses
+    excluded: ['__v'],
+
+    // Fields that must always be returned
+    required: ['_id', 'code', 'type', 'value'],
+
+    // Search configuration
+    useTextIndex: false,
+    fuzzySearch: true,
+    caseSensitive: false,
+
+    // Define allowed filter operations for each field
+    filters: {
+        // Basic discount details
+        name: ['eq', 'ne', 'regex', 'in', 'nin'],
+        code: ['eq', 'ne', 'in', 'nin'],
+        type: ['eq', 'ne', 'in'],
+        isActive: ['eq'],
+        
+        // Value and amount filters
+        value: ['eq', 'gt', 'gte', 'lt', 'lte'],
+        minPurchaseAmount: ['eq', 'gt', 'gte', 'lt', 'lte'],
+        maxDiscountAmount: ['eq', 'gt', 'gte', 'lt', 'lte'],
+        
+        // Usage filters
+        usageCount: ['eq', 'gt', 'gte', 'lt', 'lte'],
+        usageLimit: ['eq', 'gt', 'gte', 'lt', 'lte'],
+        perUserLimit: ['eq', 'gt', 'gte', 'lt', 'lte'],
+
+        // Date filters
+        startDate: ['gt', 'gte', 'lt', 'lte', 'between'],
+        endDate: ['gt', 'gte', 'lt', 'lte', 'between'],
+        createdAt: ['gt', 'gte', 'lt', 'lte', 'between'],
+        updatedAt: ['gt', 'gte', 'lt', 'lte', 'between'],
+
+        // Relationship filters
+        'sellers': ['eq', 'in'],
+        'sellers.storeName': ['eq', 'in', 'regex'],
+        'applicableProducts': ['eq', 'in'],
+        'excludedProducts': ['eq', 'in'],
+        'applicableCategories': ['eq', 'in'],
+
+        // Condition filters
+        'conditions.minimumItems': ['eq', 'gt', 'gte', 'lt', 'lte'],
+        'conditions.maximumItems': ['eq', 'gt', 'gte', 'lt', 'lte'],
+        'conditions.allowedPaymentMethods': ['in'],
+        'conditions.userGroups': ['in'],
+        'conditions.firstPurchaseOnly': ['eq'],
+        'conditions.combinableWithOtherDiscounts': ['eq']
+    },
+
+    // Lookup configuration for related collections
+    lookupConfig: {
+        'sellers.storeName': {
+            from: 'users',
+            localField: 'sellers',
+            foreignField: '_id'
+        },
+        'applicableProducts.name': {
+            from: 'products',
+            localField: 'applicableProducts',
+            foreignField: '_id'
+        },
+        'applicableCategories.name': {
+            from: 'categories',
+            localField: 'applicableCategories',
+            foreignField: '_id'
+        }
+    },
+
+    // Fields that should be treated as ObjectIds
+    objectIdFields: ['sellers', 'applicableProducts', 'excludedProducts', 'applicableCategories'],
+
+    // Population configuration
+    population: {
+        default: [
+            {
+                path: 'sellers',
+                select: 'firstname lastname storeName profilePicture',
+                pathfrom: 'users'
+            },
+            {
+                path: 'applicableProducts',
+                select: 'name mainImage.url basePrice',
+                pathfrom: 'products'
+            },
+            {
+                path: 'applicableCategories',
+                select: 'name',
+                pathfrom: 'categories'
+            }
+        ],
+        maxDepth: 2
+    },
+
+    // Pagination configuration
+    pagination: {
+        strategy: 'offset',
+        defaultLimit: 20,
+        maxLimit: 50,
+        maxSkip: 5000
+    },
+
+    // Cursor-based pagination (disabled)
+    cursor: {
+        enabled: false
+    }
+};
+
+// Create the configured API features instance
+const discountAPIFeatures = createAPIFeatures(discountFeatures);
+
 module.exports = {
     APIFeatures,
     createAPIFeatures,
@@ -1414,5 +1575,6 @@ module.exports = {
     userAPIFeatures,
     categoryAPIFeatures,
     productAPIFeatures,
-    sellerProductsAPIFeatures
+    sellerProductsAPIFeatures,
+    discountAPIFeatures
 };
