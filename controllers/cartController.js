@@ -3,7 +3,6 @@ const Product = require('../models/productModel');
 const { StatusCodes } = require('http-status-codes');
 const CustomError = require('../errors');
 const validateMongoDbId = require('../utils/validateMongodbId');
-const { checkPermissions } = require('../utils');
 
 // Get Cart
 const getCart = async (req, res) => {
