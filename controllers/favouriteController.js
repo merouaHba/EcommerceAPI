@@ -14,7 +14,7 @@ const getFavourites = async (req, res) => {
         const favourite = await Favourite.findOne({ user: userId })
             .populate({
                 path: 'products',
-                select: 'name price description images' // Select only needed fields
+                select: 'name price description mainImage.url images.url' // Select only needed fields
             })
             .lean(); // Use lean() for better performance
 
