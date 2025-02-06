@@ -2605,6 +2605,170 @@ paths:
                   msg:
                     type: string
                     example: "Product not found"
+
+  /favourites:
+    get:
+      tags:
+        - Favourite
+      summary: Get user's favourite products
+      description: Retrieve a list of products that the authenticated user has marked as favourites.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Successfully retrieved favourite products
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  favourite:
+                    type: object
+                    properties:
+                      user:
+                        type: string
+                        description: ID of the user
+                      products:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Product'
+        '401':
+          description: Unauthorized access
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: No favourites found for the user
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  msg:
+                    type: string
+                    example: "No favourites found"
+
+    post:
+      tags:
+        - Favourite
+      summary: Add a product to favourites
+      description: Add a product to the authenticated user's list of favourites.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - productId
+              properties:
+                productId:
+                  type: string
+                  description: ID of the product to add to favourites
+      responses:
+        '200':
+          description: Product added to favourites successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  msg:
+                    type: string
+                    example: "Product added to favourites successfully"
+                  favourite:
+                    type: object
+                    properties:
+                      user:
+                        type: string
+                        description: ID of the user
+                      products:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Product'
+        '400':
+          description: Invalid product ID or product already in favourites
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  msg:
+                    type: string
+                    example: "Product is already in the favourites list"
+        '401':
+          description: Unauthorized access
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Product not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  msg:
+                    type: string
+                    example: "Product not found"
+
+  /favourites/{productId}:
+    delete:
+      tags:
+        - Favourite
+      summary: Remove a product from favourites
+      description: Remove a product from the authenticated user's list of favourites.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: ID of the product to remove from favourites
+      responses:
+        '200':
+          description: Product removed from favourites successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  msg:
+                    type: string
+                    example: "Product removed from favourites successfully"
+                  favourite:
+                    type: object
+                    properties:
+                      user:
+                        type: string
+                        description: ID of the user
+                      products:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Product'
+        '401':
+          description: Unauthorized access
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Product not found in favourites
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  msg:
+                    type: string
+                    example: "Product not found in favourites"
+
 components:
   schemas:
     UserRegistration:
