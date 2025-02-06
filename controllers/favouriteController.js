@@ -1,95 +1,124 @@
+// favouriteController.js
 const Favourite = require('../models/favouriteModel');
 const Product = require('../models/productModel');
 const { StatusCodes } = require('http-status-codes');
-const {
-    checkPermissions
-} = require('../utils');
-
 const CustomError = require('../errors');
 const validateMongoDbId = require('../utils/validateMongodbId');
 
 const getFavourites = async (req, res) => {
-    const { id } = req.body
-    validateMongoDbId(id)
-    const favourite = await Favourite.findOne({ user: id })
-    if (!favourite) {
-        throw new CustomError.NotFoundError("No favourite found")
+    const userId = req.user._id; // Get user ID from authenticated request
+
+    try {
+        validateMongoDbId(userId);
+
+        const favourite = await Favourite.findOne({ user: userId })
+            .populate({
+                path: 'products',
+                select: 'name price description images' // Select only needed fields
+            })
+            .lean(); // Use lean() for better performance
+
+        if (!favourite) {
+            // Create empty favorites list if none exists
+            const newFavourite = await Favourite.create({ user: userId, products: [] });
+            return res.status(StatusCodes.OK).json({ favourite: newFavourite });
+        }
+
+        res.status(StatusCodes.OK).json({ favourite });
+    } catch (error) {
+        throw new CustomError.BadRequestError(`Error fetching favourites: ${error.message}`);
     }
-    res.status(StatusCodes.OK).json({ favourite })
-}
+};
 
 const addFavourite = async (req, res) => {
-    const { id ,productId} = req.body
-    validateMongoDbId(id)
-    const favourite = await Favourite.findOne({ user: id }).populate("products")
-   
-    if (!favourite) {
-        throw new CustomError.NotFoundError("No favourite found")
+    const userId = req.user._id;
+    const { productId } = req.body;
+
+    if (!productId) {
+        throw new CustomError.BadRequestError('Product ID is required');
     }
 
-    // check if product exist in favourite list
-    let isProductExistInFavourite = false;
-    favourite.products.map(product => {
-        if (product._id == productId) {
-            isProductExistInFavourite = true;
+
+        validateMongoDbId(userId);
+        validateMongoDbId(productId);
+
+        // Use findOneAndUpdate for atomic operation
+        let favourite = await Favourite.findOne({ user: userId });
+
+        if (!favourite) {
+            favourite = await Favourite.create({ user: userId, products: [] });
         }
-    })
-    if (isProductExistInFavourite) {
-        throw new CustomError.BadRequestError('Product is already in the favorites list')
-    }
-    validateMongoDbId(productId)
-    const product = await Product.findOne({ _id: productId })
-    if (!product) {
-        throw new CustomError.NotFoundError("No product found")
-    }
-    favourite.products.push(product)
-    favourite.save()
 
+        if (favourite.hasProduct(productId)) {
+            throw new CustomError.BadRequestError('Product is already in the favorites list');
+        }
 
-    
-    res.status(StatusCodes.OK).json({msg:"favourite added successfully", favourite })
-}
+        // Verify product exists
+        const product = await Product.findById(productId);
+        if (!product) {
+            throw new CustomError.NotFoundError('Product not found');
+        }
+        try {
+        // Add product to favorites
+        favourite.products.push(productId);
+        await favourite.save();
+
+        // Populate products before sending response
+        await favourite.populate({
+            path: 'products',
+            select: 'name price description images'
+        });
+
+        res.status(StatusCodes.OK).json({
+            msg: "Product added to favourites successfully",
+            favourite
+        });
+    } catch (error) {
+        throw new CustomError.BadRequestError(`Error removing from favourites: ${error.message}`);
+    }
+};
+
 const deleteFavourite = async (req, res) => {
+    const userId = req.user._id;
+    const { id: productId } = req.params;
 
-    const { id: productId } = req.params
-    const { id } = req.body
-    validateMongoDbId(id)
-    const favourite = await Favourite.findOne({ user: id }).populate("products")
+        validateMongoDbId(userId);
+        validateMongoDbId(productId);
 
-    if (!favourite) {
-        throw new CustomError.NotFoundError("No favourite found")
-    }
-    validateMongoDbId(productId)
-    const product = await Product.findOne({ _id: productId })
-    if (!product) {
-        throw new CustomError.NotFoundError("No product found")
-    }
-    let isProductExists = false;
-    favourite.products.map(item => {
-        if (item._id == id) {
-            isProductExists = true;
+        const favourite = await Favourite.findOne({ user: userId });
+
+        if (!favourite) {
+            throw new CustomError.NotFoundError('No favourites found for this user');
         }
-    })
 
-    if (!isProductExists) {
-        throw new CustomError.NotFoundError("No product found")
+        if (!favourite.hasProduct(productId)) {
+            throw new CustomError.NotFoundError('Product not found in favourites');
+        }
+try{
+        // Remove product using pull operator for better performance
+        await Favourite.updateOne(
+            { user: userId },
+            { $pull: { products: productId } }
+        );
+
+        // Fetch updated favorites
+        const updatedFavourite = await Favourite.findOne({ user: userId })
+            .populate({
+                path: 'products',
+                select: 'name price description images'
+            });
+
+        res.status(StatusCodes.OK).json({
+            msg: "Product removed from favourites successfully",
+            favourite: updatedFavourite
+        });
+    } catch (error) {
+        throw new CustomError.BadRequestError(`Error removing from favourites: ${error.message}`);
     }
-
-   favourite.products = favourite.products.filter(product => product._id.toString() !== productId)
-    console.log(favourite.products.length)
-    favourite.save()
-
-
-
-    res.status(StatusCodes.OK).json({ msg: "favourite deleted successfully", favourite })
-}
-
-
-
-
+};
 
 module.exports = {
     getFavourites,
     addFavourite,
     deleteFavourite
-}
+};
