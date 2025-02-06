@@ -132,7 +132,7 @@ app.use('/api/v1/users',  userRouter);
 app.use('/api/v1/products',  productRouter);
 app.use('/api/v1/categories',  categoryRouter);
 app.use('/api/v1/cart',  cartRouter);
-app.use('/api/v1/favourite',  favouriteRouter);
+app.use('/api/v1/favourites',  favouriteRouter);
 app.use('/api/v1/reviews', reviewRouter);
 app.use('/api/v1/discounts', discountRouter);
 app.use('/api/v1/orders', orderRouter);
