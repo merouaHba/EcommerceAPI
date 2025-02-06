@@ -1,9 +1,14 @@
-function coupongenerator() {
-    let coupon = "";
-    let possible = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-    for (let i = 0; i < 8 ; i++) {
-        coupon += possible.charAt(Math.floor(Math.random() * possible.length));
+const {Discount} = require('../models/discountModel');
+const generateUniqueCode = async (prefix = '') => {
+    const randomString = Math.random().toString(36).substring(2, 8).toUpperCase();
+    const code = `${prefix}${randomString}`;
+
+    const existingDiscount = await Discount.findOne({ code });
+    if (existingDiscount) {
+        return generateUniqueCode(prefix);
     }
-    return coupon;
-}
-module.exports = coupongenerator;
+
+    return code;
+};
+
+module.exports = { generateUniqueCode };
