@@ -1,12 +1,33 @@
-const express = require('express')
-const { updateCart, getCart, deleteItemFromCart, deleteAllItemsFromCart } = require('../controllers/cartController')
-const router = express.Router()
-const { authenticateUser, authorizePermissions } = require('../middlewares/authentication')
+const express = require('express');
+const router = express.Router();
+const {
+    getCart,
+    updateCart,
+    deleteItemFromCart,
+    deleteAllItemsFromCart,
+} = require('../controllers/cartController');
+const { authenticateUser, authorizePermissions } = require('../middlewares/authentication');
 
-router.get('/',authenticateUser,authorizePermissions('user'), getCart)
-router.put('/', authenticateUser, authorizePermissions('user'), updateCart)
-router.delete('/:id', authenticateUser, authorizePermissions('user') , deleteItemFromCart)
-router.delete('/', authenticateUser, authorizePermissions('user'), deleteAllItemsFromCart)
+// Get Cart
+router.get('/', authenticateUser, authorizePermissions('user'), getCart);
 
+// Update Cart
+router.put(
+    '/',
+    authenticateUser,
+    authorizePermissions('user'),
+    updateCart
+);
 
-module.exports = router
+// Delete Item from Cart
+router.delete(
+    '/:productId',
+    authenticateUser,
+    authorizePermissions('user'),
+    deleteItemFromCart
+);
+
+// Delete All Items from Cart
+router.delete('/', authenticateUser, authorizePermissions('user'), deleteAllItemsFromCart);
+
+module.exports = router;

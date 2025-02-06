@@ -1,139 +1,165 @@
 const Cart = require('../models/cartModel');
 const Product = require('../models/productModel');
 const { StatusCodes } = require('http-status-codes');
-const {
-    checkPermissions
-} = require('../utils');
-
 const CustomError = require('../errors');
 const validateMongoDbId = require('../utils/validateMongodbId');
+const { checkPermissions } = require('../utils');
 
+// Get Cart
 const getCart = async (req, res) => {
-    const { _id: id, role } = req.user
-    validateMongoDbId(id)
-    const cart = await Cart.findOne({ user: id })
+    const { _id: userId } = req.user;
+    validateMongoDbId(userId);
 
-    res.status(StatusCodes.OK).json({ cart })
-}
+    const cart = await Cart.findOne({ user: userId }).select('-__v -_id -createdAt -updatedAt')
+        .populate('items.product', 'name price images.url')
+        .populate('items.vendor', 'storeName');
 
+    if (!cart) {
+        throw new CustomError.NotFoundError('Cart not found');
+    }
 
+    res.status(StatusCodes.OK).json({ cart });
+};
+
+// Update Cart
 const updateCart = async (req, res) => {
-    const { _id, role } = req.user
-    const { id, quantity } = req.body.product
-    validateMongoDbId(_id)
-    const cart = await Cart.findOne({ user: _id })
-    console.log(cart)
+    const { _id: userId } = req.user;
+    const { productId, quantity } = req.body;
+    if (!quantity) {
+        throw new CustomError.BadRequestError('Please provide quantity');
+    }
+    validateMongoDbId(userId);
+    validateMongoDbId(productId);
 
-    validateMongoDbId(id)
-    const product = await Product.findOne({ _id: id })
+    // Find or create cart
+    let cart = await Cart.findOne({ user: userId });
+    if (!cart) {
+        cart = await Cart.create({ user: userId, items: [], totalPrice: 0, totalQuantity: 0 });
+    }
+
+    // Find product and validate
+    const product = await Product.findOne({ _id: productId});
     if (!product) {
-        throw new CustomError.NotFoundError('Product not found')
+        throw new CustomError.NotFoundError('Product not found');
     }
 
-    let isProductExists = cart.items.some(item => {
-        return item.product == id
-    })
-
-    // check if product not out of stock
-
-    if (parseInt(product.quantity, 10)=== 0) {
-        throw new CustomError.BadRequestError('Product out of stock')
+    if (product.quantity === 0) {
+        throw new CustomError.BadRequestError('Product out of stock');
     }
- 
-    // check product quantity
- 
-        if (product.quantity < quantity) {
-            throw new CustomError.BadRequestError('Not enough quantity')
-        }
 
-    
-    let item = {}
-    if (isProductExists) {
+    if (product.quantity < quantity) {
+        throw new CustomError.BadRequestError('Not enough quantity available');
+    }
+    // Determine the price to use (salePrice or basePrice)
+    const price = product.salePrice || product.basePrice;
 
-       
-        cart.items = cart.items.map(cartItem => {
-            if (cartItem.product == id) {
-                cart.totalQuantity = parseInt(cart.totalQuantity) - parseInt(cartItem.quantity) + parseInt(quantity)
-                cart.totalPrice = parseInt(cart.totalPrice) - (parseInt(cartItem.price) * parseInt(cartItem.quantity)) + (parseInt(cartItem.price)* parseInt(quantity))
-               
-                cartItem.quantity = quantity
-            }
-            return cartItem
-        })
-        // cart.totalQuantity = parseInt(cart.totalQuantity) + parseInt(item.quantity)
-        // cart.totalPrice = parseInt(cart.totalPrice) + (parseInt(item.price) * parseInt(quantity))
-        await cart.save()
-        res.status(StatusCodes.OK).json({ msg: "product quantity updated succefully", cart })
+    // Check if product already exists in cart
+    const itemIndex = cart.items.findIndex(
+        (item) => item.product.toString() === productId && item.vendor.toString() === product.seller.toString()
+    );
 
+    if (itemIndex > -1) {
+        // Update existing item
+        const oldQuantity = cart.items[itemIndex].quantity;
+        cart.items[itemIndex].quantity = quantity;
+        cart.totalQuantity = cart.totalQuantity - oldQuantity + quantity;
+        cart.totalPrice = cart.totalPrice - (oldQuantity * price) + (quantity * price);
     } else {
-
-        item = {
-            product: id,
+        // Add new item
+        cart.items.push({
+            product: productId,
+            vendor: product.seller,
             quantity: quantity,
-            price: product.price,
-        }
-        cart.items.push(item)
-        cart.totalQuantity = parseInt(cart.totalQuantity) + parseInt(item.quantity)
-        cart.totalPrice = parseInt(cart.totalPrice) + (parseInt(item.price) * parseInt(item.quantity))
-        await cart.save()
-        res.status(StatusCodes.OK).json({ msg: "product added succefully", cart })
+            price: price,
+        });
+        cart.totalQuantity += quantity;
+        cart.totalPrice += quantity * price;
     }
 
-}
+    await cart.save();
 
+    // Populate the response
+    const populatedCart = await Cart.findById(cart._id).select('-__v -_id -createdAt -updatedAt')
+        .populate('items.product', 'name price images.url')
+        .populate('items.vendor', 'storeName');
+
+    res.status(StatusCodes.OK).json({
+        msg: itemIndex > -1 ? 'Product quantity updated successfully' : 'Product added successfully',
+        cart: populatedCart,
+    });
+};
+
+// Delete Item from Cart
 const deleteItemFromCart = async (req, res) => {
-    const { _id, role } = req.user
-    const { id } = req.params
-    validateMongoDbId(id)
-    const cart = await Cart.findOne({ user: _id })
+    const { _id: userId } = req.user;
+    const { productId } = req.params;
 
+    validateMongoDbId(userId);
+    validateMongoDbId(productId);
 
-    let isProductExists = cart.items.some(item => {
-        return item.product == id
-    })
+    const cart = await Cart.findOne({ user: userId });
+    if (!cart) {
+        throw new CustomError.NotFoundError('Cart not found');
+    }
+    // Find product and validate
+    const product = await Product.findOne({ _id: productId });
+    if (!product) {
+        throw new CustomError.NotFoundError('Product not found');
+    }
+    const itemIndex = cart.items.findIndex(
+        (item) => item.product.toString() === productId && item.vendor.toString() === product.seller.toString()
+    );
 
-    if (!isProductExists) {
-        throw new CustomError.NotFoundError("No product found")
+    if (itemIndex === -1) {
+        throw new CustomError.NotFoundError('Product not found in cart');
     }
 
-    cart.items = cart.items.filter(item => {
-        if (item.product == id) {
-            if (cart.totalQuantity > 0 && (parseInt(cart.totalQuantity) - parseInt(item.quantity)) >= 0) {
-                cart.totalQuantity = parseInt(cart.totalQuantity) - parseInt(item.quantity)
-            }
-            if (cart.totalPrice > 0 && (parseInt(cart.totalPrice) - (parseInt(item.price) * parseInt(item.quantity)))>= 0) {
-                cart.totalPrice = parseInt(cart.totalPrice) - (parseInt(item.price) * parseInt(item.quantity))
-            }
-            return
-        }
-        return item
-    })
-    cart.save()
-    res.status(StatusCodes.OK).json({ msg: "product deleted succefully", cart })
-}
+    // Update totals
+    const item = cart.items[itemIndex];
+    cart.totalQuantity -= item.quantity;
+    cart.totalPrice -= item.price * item.quantity;
+
+    // Remove item
+    cart.items.splice(itemIndex, 1);
+
+    await cart.save();
+
+    res.status(StatusCodes.OK).json({
+        msg: 'Product removed successfully',
+        cart,
+    });
+};
+
+// Delete All Items from Cart
 const deleteAllItemsFromCart = async (req, res) => {
-    const { _id, role } = req.user
-    validateMongoDbId(_id)
-    const cart = await Cart.findOne({ user: _id })
+    const { _id: userId } = req.user;
+    validateMongoDbId(userId);
+
+    const cart = await Cart.findOne({ user: userId });
+    if (!cart) {
+        throw new CustomError.NotFoundError('Cart not found');
+    }
 
     if (cart.items.length === 0) {
-        throw new CustomError.NotFoundError("No product found")
+        throw new CustomError.NotFoundError('No products found in cart');
     }
 
-    cart.items = []
-    cart.totalPrice = 0
-    cart.totalQuantity = 0
+    // Reset cart
+    cart.items = [];
+    cart.totalPrice = 0;
+    cart.totalQuantity = 0;
 
-    await cart.save()
-    res.status(StatusCodes.OK).json({ msg: "product deleted succefully", cart })
-}
+    await cart.save();
 
-
-
+    res.status(StatusCodes.OK).json({
+        msg: 'Cart cleared successfully',
+        cart,
+    });
+};
 
 module.exports = {
     getCart,
     updateCart,
     deleteItemFromCart,
     deleteAllItemsFromCart,
-}
+};
