@@ -2768,7 +2768,433 @@ paths:
                   msg:
                     type: string
                     example: "Product not found in favourites"
+  /discounts:
+    get:
+      tags:
+        - Discount
+      summary: Get all discounts with filtering, sorting, and pagination
+      description: |
+        Retrieve a paginated list of all discounts with filtering, sorting, and searching capabilities.
+        - Supports filtering by discount type, status, and seller.
+        - Supports sorting by creation date, start date, end date, and usage count.
+        - Supports pagination with both offset and cursor-based methods.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          description: Page number for offset pagination.
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          description: Number of items per page.
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: sort
+          in: query
+          description: Sorting criteria (e.g., `-createdAt` for descending order by creation date).
+          schema:
+            type: string
+        - name: type
+          in: query
+          description: Filter by discount type (e.g., `percentage`, `fixed`, `buyXgetY`, `freeShipping`).
+          schema:
+            type: string
+        - name: isActive
+          in: query
+          description: Filter by active status.
+          schema:
+            type: boolean
+        - name: sellerId
+          in: query
+          description: Filter by seller ID.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successfully retrieved discounts.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  count:
+                    type: integer
+                    description: Number of discounts in the current page.
+                  total:
+                    type: integer
+                    description: Total number of discounts matching the query.
+                  pages:
+                    type: integer
+                    description: Total number of pages (for offset pagination).
+                  currentPage:
+                    type: integer
+                    description: Current page number (for offset pagination).
+                  nextCursor:
+                    type: string
+                    description: Base64-encoded cursor for the next page (for cursor pagination).
+                    nullable: true
+                  hasNextPage:
+                    type: boolean
+                    description: Whether there are more pages (for cursor pagination).
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Discount'
+        '401':
+          description: Unauthorized access.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  msg:
+                    type: string
+                    example: "Unauthorized access."
 
+    post:
+      tags:
+        - Discount
+      summary: Create a new discount
+      description: |
+        Create a new discount. Requires admin or seller authentication.
+        - Admins can create global or seller-specific discounts.
+        - Sellers can only create discounts for themselves.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DiscountCreate'
+      responses:
+        '201':
+          description: Discount created successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  discount:
+                    $ref: '#/components/schemas/Discount'
+        '400':
+          description: Invalid input data.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  msg:
+                    type: string
+                    example: "Please provide all required fields."
+        '401':
+          description: Unauthorized access.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  msg:
+                    type: string
+                    example: "Unauthorized access."
+
+  /discounts/{id}:
+    get:
+      tags:
+        - Discount
+      summary: Get a single discount by ID
+      description: Retrieve detailed information about a specific discount by its ID.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID of the discount.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successfully retrieved discount.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  discount:
+                    $ref: '#/components/schemas/Discount'
+        '404':
+          description: Discount not found.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  msg:
+                    type: string
+                    example: "Discount not found."
+
+    put:
+      tags:
+        - Discount
+      summary: Update a discount
+      description: |
+        Update an existing discount. Requires admin or seller authentication.
+        - Admins can update any discount.
+        - Sellers can only update their own discounts.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID of the discount.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DiscountUpdate'
+      responses:
+        '200':
+          description: Discount updated successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  discount:
+                    $ref: '#/components/schemas/Discount'
+        '400':
+          description: Invalid input data.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  msg:
+                    type: string
+                    example: "Invalid discount data."
+        '401':
+          description: Unauthorized access.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  msg:
+                    type: string
+                    example: "Unauthorized access."
+        '404':
+          description: Discount not found.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  msg:
+                    type: string
+                    example: "Discount not found."
+
+    delete:
+      tags:
+        - Discount
+      summary: Delete a discount
+      description: |
+        Delete a discount. Requires admin or seller authentication.
+        - Admins can delete any discount.
+        - Sellers can only delete their own discounts.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID of the discount.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Discount deleted successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  msg:
+                    type: string
+                    example: "Discount deleted successfully."
+        '401':
+          description: Unauthorized access.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  msg:
+                    type: string
+                    example: "Unauthorized access."
+        '404':
+          description: Discount not found.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  msg:
+                    type: string
+                    example: "Discount not found."
+
+  /discounts/validate:
+    post:
+      tags:
+        - Discount
+      summary: Validate a discount code
+      description: |
+        Validate a discount code for a specific order.
+        - Checks if the discount is valid for the given order amount, item count, and seller.
+        - Returns the discount amount if valid.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - code
+                - orderAmount
+                - itemCount
+                - sellerId
+              properties:
+                code:
+                  type: string
+                  description: Discount code to validate.
+                orderAmount:
+                  type: number
+                  description: Total order amount.
+                itemCount:
+                  type: integer
+                  description: Number of items in the order.
+                sellerId:
+                  type: string
+                  description: ID of the seller.
+      responses:
+        '200':
+          description: Discount validated successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  discount:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                      type:
+                        type: string
+                      value:
+                        type: number
+                      discountAmount:
+                        type: number
+        '400':
+          description: Invalid discount code or validation failed.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  msg:
+                    type: string
+                    example: "Invalid discount code."
+        '401':
+          description: Unauthorized access.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  msg:
+                    type: string
+                    example: "Unauthorized access."
+
+  /discounts/{id}/stats:
+    get:
+      tags:
+        - Discount
+      summary: Get discount usage statistics
+      description: |
+        Retrieve usage statistics for a specific discount.
+        - Includes total usage count, total amount saved, and average savings per usage.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID of the discount.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successfully retrieved discount statistics.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  stats:
+                    type: object
+                    properties:
+                      totalUsage:
+                        type: integer
+                      totalSaved:
+                        type: number
+                      avgSaved:
+                        type: number
+        '404':
+          description: Discount not found.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  msg:
+                    type: string
+                    example: "Discount not found."
+
+    
 components:
   schemas:
     UserRegistration:
@@ -3479,6 +3905,233 @@ components:
         updatedAt:
           type: string
           format: date-time
+    Discount:
+      type: object
+      properties:
+        _id:
+          type: string
+          description: Unique identifier for the discount.
+        code:
+          type: string
+          description: Unique discount code.
+        name:
+          type: string
+          description: Name of the discount.
+        description:
+          type: string
+          description: Description of the discount.
+        type:
+          type: string
+          enum: [percentage, fixed, buyXgetY, freeShipping]
+          description: Type of the discount.
+        value:
+          type: number
+          description: Value of the discount (percentage or fixed amount).
+        startDate:
+          type: string
+          format: date-time
+          description: Start date of the discount.
+        endDate:
+          type: string
+          format: date-time
+          description: End date of the discount.
+        minPurchaseAmount:
+          type: number
+          description: Minimum purchase amount required to apply the discount.
+        maxDiscountAmount:
+          type: number
+          description: Maximum discount amount that can be applied.
+        usageLimit:
+          type: integer
+          description: Maximum number of times the discount can be used.
+        usageCount:
+          type: integer
+          description: Number of times the discount has been used.
+        perUserLimit:
+          type: integer
+          description: Maximum number of times a single user can use the discount.
+        sellers:
+          type: array
+          items:
+            type: string
+          description: List of seller IDs associated with the discount.
+        isActive:
+          type: boolean
+          description: Whether the discount is active.
+        conditions:
+          type: object
+          properties:
+            minimumItems:
+              type: integer
+              description: Minimum number of items required for the discount.
+            maximumItems:
+              type: integer
+              description: Maximum number of items allowed for the discount.
+            allowedPaymentMethods:
+              type: array
+              items:
+                type: string
+              description: List of allowed payment methods.
+            userGroups:
+              type: array
+              items:
+                type: string
+              description: List of user groups eligible for the discount.
+            firstPurchaseOnly:
+              type: boolean
+              description: Whether the discount is valid only for first-time purchases.
+            combinableWithOtherDiscounts:
+              type: boolean
+              description: Whether the discount can be combined with other discounts.
+        createdAt:
+          type: string
+          format: date-time
+          description: Date and time when the discount was created.
+        updatedAt:
+          type: string
+          format: date-time
+          description: Date and time when the discount was last updated.
+
+    DiscountCreate:
+      type: object
+      required:
+        - name
+        - type
+        - value
+        - startDate
+        - endDate
+      properties:
+        name:
+          type: string
+          description: Name of the discount.
+        description:
+          type: string
+          description: Description of the discount.
+        type:
+          type: string
+          enum: [percentage, fixed, buyXgetY, freeShipping]
+          description: Type of the discount.
+        value:
+          type: number
+          description: Value of the discount (percentage or fixed amount).
+        startDate:
+          type: string
+          format: date-time
+          description: Start date of the discount.
+        endDate:
+          type: string
+          format: date-time
+          description: End date of the discount.
+        minPurchaseAmount:
+          type: number
+          description: Minimum purchase amount required to apply the discount.
+        maxDiscountAmount:
+          type: number
+          description: Maximum discount amount that can be applied.
+        usageLimit:
+          type: integer
+          description: Maximum number of times the discount can be used.
+        perUserLimit:
+          type: integer
+          description: Maximum number of times a single user can use the discount.
+        sellers:
+          type: array
+          items:
+            type: string
+          description: List of seller IDs associated with the discount.
+        conditions:
+          type: object
+          properties:
+            minimumItems:
+              type: integer
+              description: Minimum number of items required for the discount.
+            maximumItems:
+              type: integer
+              description: Maximum number of items allowed for the discount.
+            allowedPaymentMethods:
+              type: array
+              items:
+                type: string
+              description: List of allowed payment methods.
+            userGroups:
+              type: array
+              items:
+                type: string
+              description: List of user groups eligible for the discount.
+            firstPurchaseOnly:
+              type: boolean
+              description: Whether the discount is valid only for first-time purchases.
+            combinableWithOtherDiscounts:
+              type: boolean
+              description: Whether the discount can be combined with other discounts.
+
+    DiscountUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Updated name of the discount.
+        description:
+          type: string
+          description: Updated description of the discount.
+        type:
+          type: string
+          enum: [percentage, fixed, buyXgetY, freeShipping]
+          description: Updated type of the discount.
+        value:
+          type: number
+          description: Updated value of the discount (percentage or fixed amount).
+        startDate:
+          type: string
+          format: date-time
+          description: Updated start date of the discount.
+        endDate:
+          type: string
+          format: date-time
+          description: Updated end date of the discount.
+        minPurchaseAmount:
+          type: number
+          description: Updated minimum purchase amount required to apply the discount.
+        maxDiscountAmount:
+          type: number
+          description: Updated maximum discount amount that can be applied.
+        usageLimit:
+          type: integer
+          description: Updated maximum number of times the discount can be used.
+        perUserLimit:
+          type: integer
+          description: Updated maximum number of times a single user can use the discount.
+        sellers:
+          type: array
+          items:
+            type: string
+          description: Updated list of seller IDs associated with the discount.
+        conditions:
+          type: object
+          properties:
+            minimumItems:
+              type: integer
+              description: Updated minimum number of items required for the discount.
+            maximumItems:
+              type: integer
+              description: Updated maximum number of items allowed for the discount.
+            allowedPaymentMethods:
+              type: array
+              items:
+                type: string
+              description: Updated list of allowed payment methods.
+            userGroups:
+              type: array
+              items:
+                type: string
+              description: Updated list of user groups eligible for the discount.
+            firstPurchaseOnly:
+              type: boolean
+              description: Updated whether the discount is valid only for first-time purchases.
+            combinableWithOtherDiscounts:
+              type: boolean
+              description: Updated whether the discount can be combined with other discounts.
+
   responses:
     type: object
     properties:
